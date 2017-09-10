@@ -1,8 +1,3 @@
-
-
-
-
-
 # This program will read in Bias, Flat, and Dark Files and make a master Flat for each filter; G,I,R,Z, and Y.
 # Andrew Scerbo
 
@@ -24,10 +19,8 @@ print(paste("number of files:", length(files)), quote = FALSE)
 
 Y <- readFITS(files[[1]])
 
-# xNumber <- 3352
-# yNumber <- 2532
-xNumber <- strtoi(Y$hdr[which(Y$hdr == "NAXIS1") + 1])
-yNumber <- strtoi(Y$hdr[which(Y$hdr == "NAXIS2") + 1])
+xNumber <- 3352
+yNumber <- 2532
 
 
 # set up lists to hold file names
@@ -82,17 +75,18 @@ if (counter > 0) {
   masterBias <- masterBias / counter
 }
 # Finished masterBias
-##### sort darks by exosure time
-##### no darks subbed from flats
+##### sort darks by exosure time, list of each time, write out at end
+##### alert for no dark with time as a science
+## darks are linear
+
 masterDark <-
   array(0, dim = c(xNumber, yNumber)) # make into constants
 counter <- 0
 count <- length(darkFrameFiles)
 for (x in darkFrameFiles) {
   Y <- readFITS(x)
-  img <- Y$imDat - masterBias
   counter <- counter + 1
-  masterDark <- masterDark + img - masterBias
+  masterDark <- masterDark + Y$imDat - masterBias
   print(paste("Read in", counter, "of", count))
 }
 
@@ -103,7 +97,6 @@ if (counter > 0) {
 # Finished masterDark
 
 # Average the value of each flat field and sort by filters
-# master flat for each filter
 flatFunction <- function(f) {
   # Get average count of all pixels in an image
   masterFlat <- array(0, dim = c(xNumber, yNumber))
@@ -112,32 +105,66 @@ flatFunction <- function(f) {
     Y <- readFITS(file)
     img <- Y$imDat
     avg <- 0
-    counter <- 0
-    flatCounter <- flatCounter + 1
     
     # normalize the image
     avg <- mean(img - masterBias)
-    masterFlat <- masterFlat + (img - masterBias)/avg
+    masterFlat <- masterFlat + ((img - masterBias) / avg)
+    flatCounter <- flatCounter + 1
     
-    ###### avg into normed master
-    ###### histogram for masters
     ###### add master bias field into header
     
-    # check if the numbers in the image are real
-    if (is.nan(img[nrow(img) / 2, ncol(img) / 2]) == FALSE) {
-      img <- img / (avg / counter)
-    } else {
-      f[[which(f == img)]] <- NULL
-    }
   }
-  remove(Y)
-  return (masterFlat)
+  # if (exists(Y)) remove(Y)
+  return (masterFlat / flatCounter)
 }
 
+# master flat for each filter
 masterGFlat <- flatFunction(gFlatFiles)
 masterRFlat <- flatFunction(rFlatFiles)
 masterIFlat <- flatFunction(iFlatFiles)
 masterYFlat <- flatFunction(yFlatFiles)
 masterZFlat <- flatFunction(zFlatFiles)
-remove(gFlatFiles,rFlatFiles,iFlatFiles,yFlatFiles,zFlatFiles)
-# Finished making master flats
+remove(gFlatFiles, rFlatFiles, iFlatFiles, yFlatFiles, zFlatFiles)
+
+colors <-
+  c(rgb(1, 0, 0, 0.5),
+    rgb(0, 0, 1, 0.5),
+    rgb(0, 1, 0, 0.5),
+    rgb(1, 0, 1, 0.5),
+    rgb(1, 1, 0, 0.5))
+
+masterFlats <- list(masterGFlat,
+                    masterRFlat,
+                    masterIFlat,
+                    masterYFlat,
+                    masterZFlat)
+
+
+for (i in length(masterFlats):1) {
+  if (is.nan(masterFlats[[i]][xNumber / 2, yNumber / 2])) {
+    masterFlats[[i]] <- NULL
+  }
+}
+
+xmin <- .Machine$integer.max
+xmax <- .Machine$integer.min
+for (i in length(masterFlats):1) {
+  xmin <- min(xmin, c(masterFlats[[i]]))
+  xmax <- max(xmax, c(masterFlats[[i]]))
+}
+
+xmax <- xmax - xmax / 5
+xmin <- xmin + xmin / 10
+
+hist(
+  masterFlats[[1]],
+  col = colors[1],
+  xlim = c(xmin, xmax),
+  main = "Master flats"
+)
+
+for (i in 2:length(masterFlats)) {
+  hist(masterFlats[[i]],
+       col = colors[[i]],
+       add = T)
+}

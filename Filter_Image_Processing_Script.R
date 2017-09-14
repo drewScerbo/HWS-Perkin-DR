@@ -17,11 +17,8 @@ files <-
   )
 print(paste("number of files:", length(files)), quote = FALSE)
 
-Y <- readFITS(files[[1]])
-
 xNumber <- 3352
 yNumber <- 2532
-
 
 # set up lists to hold file names
 darkFrameFiles <- list()
@@ -36,7 +33,6 @@ masterBias <-
 counter <- 0
 count <- length(files)
 for (x in files) {
-  print(x)
   counter <- counter + 1
   Y <- readFITS(x)
   s <- Y$hdr[which(Y$hdr == "IMAGETYP") + 1]
@@ -79,21 +75,57 @@ if (counter > 0) {
 ##### alert for no dark with time as a science
 ## darks are linear
 
-masterDark <-
-  array(0, dim = c(xNumber, yNumber)) # make into constants
 counter <- 0
 count <- length(darkFrameFiles)
+exposureTimes <- c()
+
 for (x in darkFrameFiles) {
   Y <- readFITS(x)
-  counter <- counter + 1
-  masterDark <- masterDark + Y$imDat - masterBias
-  print(paste("Read in", counter, "of", count))
+  s <- Y$hdr[which(Y$hdr == "EXPTIME") + 1]
+  if (!is.element(s, exposureTimes)) {
+    exposureTimes <- c(exposureTimes, s)
+  }
 }
 
-if (counter > 0) {
-  masterDark <- masterDark / counter
-  remove(darkFrameFiles)
+
+exposureTimeFiles <-
+  array(list(), dim = c(1, length(exposureTimes)))
+
+for (x in darkFrameFiles) {
+  Y <- readFITS(x)
+  s <- Y$hdr[which(Y$hdr == "EXPTIME") + 1]
+  counter <- counter + 1
+  for (y in 1:length(exposureTimes)) {
+    if (exposureTimes[[y]] == s) {
+      exposureTimeFiles[[y]][[length(exposureTimeFiles[[y]]) + 1]] <- x
+    }
+  }
+  
+  print(paste("Read in", counter, "dark frames of", count))
 }
+
+
+darkCounter <- function(files) {
+  masterDark <-
+    array(0, dim = c(xNumber, yNumber))
+  for (count in 1:length(files)) {
+    if (count == 1)
+      next
+    counter <- counter + 1
+    Y <- readFITS(x)
+    masterDark <- masterDark + Y$imDat - masterBias
+  }
+  masterDark <- masterDark / counter
+  return(masterDark)
+}
+
+masterDarks <- list()
+
+for (i in 1:length(exposureTimeFiles)) {
+  masterDarks[[length(masterDarks) + 1]] <-
+    darkCounter(exposureTimeFiles[[i]])
+}
+
 # Finished masterDark
 
 # Average the value of each flat field and sort by filters
@@ -111,10 +143,10 @@ flatFunction <- function(f) {
     masterFlat <- masterFlat + ((img - masterBias) / avg)
     flatCounter <- flatCounter + 1
     
-    ###### add master bias field into header
     
   }
-  # if (exists(Y)) remove(Y)
+  
+  ###### add master bias field into header
   return (masterFlat / flatCounter)
 }
 
@@ -146,25 +178,24 @@ for (i in length(masterFlats):1) {
   }
 }
 
-xmin <- .Machine$integer.max
-xmax <- .Machine$integer.min
+xmin <- .Machine$integer.max # start at maximum possible value
+xmax <- .Machine$integer.min # start at minimum possible value
 for (i in length(masterFlats):1) {
   xmin <- min(xmin, c(masterFlats[[i]]))
   xmax <- max(xmax, c(masterFlats[[i]]))
 }
 
-xmax <- xmax - xmax / 5
-xmin <- xmin + xmin / 10
-
 hist(
   masterFlats[[1]],
-  col = colors[1],
+  col = colors[[1]],
   xlim = c(xmin, xmax),
-  main = "Master flats"
+  main = "Master flats",
+  breaks = 100
 )
 
 for (i in 2:length(masterFlats)) {
   hist(masterFlats[[i]],
        col = colors[[i]],
+       breaks = 100,
        add = T)
 }

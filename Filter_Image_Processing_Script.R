@@ -126,7 +126,10 @@ for (i in 1:length(exposureTimeFiles)) {
     darkCounter(exposureTimeFiles[[i]])
 }
 
-# Finished masterDark
+# Finished masterDarks
+
+neededExposureTimes <- c()
+
 
 # Average the value of each flat field and sort by filters
 flatFunction <- function(f) {
@@ -159,22 +162,28 @@ masterZFlat <- flatFunction(zFlatFiles)
 remove(gFlatFiles, rFlatFiles, iFlatFiles, yFlatFiles, zFlatFiles)
 
 colors <-
-  c(rgb(1, 0, 0, 0.5),
-    rgb(0, 0, 1, 0.5),
-    rgb(0, 1, 0, 0.5),
-    rgb(1, 0, 1, 0.5),
-    rgb(1, 1, 0, 0.5))
+  list(rgb(1, 0, 0, 0.5),
+       rgb(0, 0, 1, 0.5),
+       rgb(0, 1, 0, 0.5),
+       rgb(1, 0, 1, 0.5),
+       rgb(1, 1, 0, 0.5))
 
 masterFlats <- list(masterGFlat,
                     masterRFlat,
                     masterIFlat,
                     masterYFlat,
                     masterZFlat)
-
+scienceFrameFilters <- list("g Filter",
+                            "r Filter",
+                            "i Filter",
+                            "y Filter",
+                            "z Filter")
 
 for (i in length(masterFlats):1) {
   if (is.nan(masterFlats[[i]][xNumber / 2, yNumber / 2])) {
     masterFlats[[i]] <- NULL
+    colors[[i]] <- NULL
+    scienceFrameFilters[[i]] <- NULL
   }
 }
 
@@ -189,7 +198,7 @@ hist(
   masterFlats[[1]],
   col = colors[[1]],
   xlim = c(xmin, xmax),
-  main = "Master flats",
+  main = "Master Flats",
   breaks = 100
 )
 
@@ -199,3 +208,5 @@ for (i in 2:length(masterFlats)) {
        breaks = 100,
        add = T)
 }
+
+legend("topleft", c(unlist(scienceFrameFilters)), col=c(unlist(colors)), lwd=5)

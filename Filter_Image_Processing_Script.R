@@ -27,6 +27,7 @@ iFlatFiles <- list()
 rFlatFiles <- list()
 zFlatFiles <- list()
 yFlatFiles <- list()
+neededExposureTimes <- list()
 
 masterBias <-
   array(0, dim = c(xNumber, yNumber)) # make into constants
@@ -61,6 +62,11 @@ for (x in files) {
       print("NO FILTER: file should have a filter")
       stopifnot(FALSE)
     }
+  } else if (s == "Light Frame") {
+    expTime <- Y$hdr[which(Y$hdr == "EXPTIME") + 1]
+    if (which(neededExposureTimes == expTime) == 0)
+      neededExposureTimes[[length(neededExposureTimes) + 1]] <-
+        expTime
   }
   print(paste("Read in", counter, "of", count))
 }
@@ -85,6 +91,8 @@ for (x in darkFrameFiles) {
   if (!is.element(s, exposureTimes)) {
     exposureTimes <- c(exposureTimes, s)
   }
+  i <- which(neededExposureTimes == s)
+  if (length(i) > 0) neededExposureTimes[[i]] <- NULL
 }
 
 
@@ -128,8 +136,18 @@ for (i in 1:length(exposureTimeFiles)) {
 
 # Finished masterDarks
 
-neededExposureTimes <- c()
 
+if (length(neededExposureTimes) > 0) {
+  for (x in neededExposureTimes) {
+    difference <- c(.Machine$integer.max,-1)
+    for (y in exposureTimes) {
+      print(paste(x,y))
+      diff <- abs(strtoi(y) - strtoi(x))
+      if (diff < difference) difference <- c(diff,y)
+    }
+    ####
+  }
+}
 
 # Average the value of each flat field and sort by filters
 flatFunction <- function(f) {
@@ -149,7 +167,10 @@ flatFunction <- function(f) {
     
   }
   
-  ###### add master bias field into header
+  ###### add master bias field into header #####################
+  # count <- length(Y$hdr)
+  # Y$hdr[[count + 1]] <- "Master Bias"
+  # Y$hdr[[count + 2]] <- ""
   return (masterFlat / flatCounter)
 }
 
@@ -173,6 +194,7 @@ masterFlats <- list(masterGFlat,
                     masterIFlat,
                     masterYFlat,
                     masterZFlat)
+
 scienceFrameFilters <- list("g Filter",
                             "r Filter",
                             "i Filter",
@@ -209,4 +231,7 @@ for (i in 2:length(masterFlats)) {
        add = T)
 }
 
-legend("topleft", c(unlist(scienceFrameFilters)), col=c(unlist(colors)), lwd=5)
+legend("topright",
+       c(unlist(scienceFrameFilters)),
+       col = c(unlist(colors)),
+       lwd = 5)

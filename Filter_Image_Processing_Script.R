@@ -5,8 +5,9 @@
 library(FITSio)
 
 # get all the .fits files
-s <-
-  "C:/Users/drews/OneDrive/Documents/Hobart 16-17/Astronomy/error images"
+path <- "/Users/drewScerbo/Downloads/images"
+# path <-
+#   "C:/Users/drews/OneDrive/Documents/Hobart 16-17/Astronomy/error images"
 
 files <-
   list.files(
@@ -29,8 +30,10 @@ zFlatFiles <- list()
 yFlatFiles <- list()
 neededExposureTimes <- list()
 
+# sort each file into Bias frame, Dark frame, or Flat Field and by filter
+# if flat filed. Also takes in all needed exposure times of light frames
 masterBias <-
-  array(0, dim = c(xNumber, yNumber)) # make into constants
+  array(0, dim = c(xNumber, yNumber)) 
 counter <- 0
 count <- length(files)
 for (x in files) {
@@ -73,18 +76,18 @@ for (x in files) {
 
 remove(files)
 
+# average the master bias
 if (counter > 0) {
   masterBias <- masterBias / counter
 }
 # Finished masterBias
-##### sort darks by exosure time, list of each time, write out at end
-##### alert for no dark with time as a science
-## darks are linear
 
 counter <- 0
 count <- length(darkFrameFiles)
-exposureTimes <- c()
+exposureTimes <- c() # list of exposure times of the darks
 
+# check if any light frame exposure times don't have a dark 
+# with the same exposure time
 for (x in darkFrameFiles) {
   Y <- readFITS(x)
   s <- Y$hdr[which(Y$hdr == "EXPTIME") + 1]
@@ -95,24 +98,23 @@ for (x in darkFrameFiles) {
   if (length(i) > 0) neededExposureTimes[[i]] <- NULL
 }
 
-
 exposureTimeFiles <-
   array(list(), dim = c(1, length(exposureTimes)))
 
+# sort dark frames by exposure time and 
 for (x in darkFrameFiles) {
   Y <- readFITS(x)
   s <- Y$hdr[which(Y$hdr == "EXPTIME") + 1]
   counter <- counter + 1
-  for (y in 1:length(exposureTimes)) {
-    if (exposureTimes[[y]] == s) {
-      exposureTimeFiles[[y]][[length(exposureTimeFiles[[y]]) + 1]] <- x
-    }
+  
+  i <- which(exposureTimes[[y]] == s){
+    exposureTimeFiles[[y]][[length(exposureTimeFiles[[y]]) + 1]] <- x
   }
   
   print(paste("Read in", counter, "dark frames of", count))
 }
 
-
+# function to average dark frames into a master dark (and bias) frame
 darkCounter <- function(files) {
   masterDark <-
     array(0, dim = c(xNumber, yNumber))
@@ -134,8 +136,9 @@ for (i in 1:length(exposureTimeFiles)) {
     darkCounter(exposureTimeFiles[[i]])
 }
 
-# Finished masterDarks
 
+
+# Finished masterDarks
 
 if (length(neededExposureTimes) > 0) {
   for (x in neededExposureTimes) {
@@ -159,8 +162,10 @@ flatFunction <- function(f) {
     img <- Y$imDat
     avg <- 0
     
+    # use master dark in exposure time instead of bias ################## 
+    
     # normalize the image
-    avg <- mean(img - masterBias)
+    avg <- mean(img - masterBias) 
     masterFlat <- masterFlat + ((img - masterBias) / avg)
     flatCounter <- flatCounter + 1
     
@@ -181,57 +186,3 @@ masterIFlat <- flatFunction(iFlatFiles)
 masterYFlat <- flatFunction(yFlatFiles)
 masterZFlat <- flatFunction(zFlatFiles)
 remove(gFlatFiles, rFlatFiles, iFlatFiles, yFlatFiles, zFlatFiles)
-
-colors <-
-  list(rgb(1, 0, 0, 0.5),
-       rgb(0, 0, 1, 0.5),
-       rgb(0, 1, 0, 0.5),
-       rgb(1, 0, 1, 0.5),
-       rgb(1, 1, 0, 0.5))
-
-masterFlats <- list(masterGFlat,
-                    masterRFlat,
-                    masterIFlat,
-                    masterYFlat,
-                    masterZFlat)
-
-scienceFrameFilters <- list("g Filter",
-                            "r Filter",
-                            "i Filter",
-                            "y Filter",
-                            "z Filter")
-
-for (i in length(masterFlats):1) {
-  if (is.nan(masterFlats[[i]][xNumber / 2, yNumber / 2])) {
-    masterFlats[[i]] <- NULL
-    colors[[i]] <- NULL
-    scienceFrameFilters[[i]] <- NULL
-  }
-}
-
-xmin <- .Machine$integer.max # start at maximum possible value
-xmax <- .Machine$integer.min # start at minimum possible value
-for (i in length(masterFlats):1) {
-  xmin <- min(xmin, c(masterFlats[[i]]))
-  xmax <- max(xmax, c(masterFlats[[i]]))
-}
-
-hist(
-  masterFlats[[1]],
-  col = colors[[1]],
-  xlim = c(xmin, xmax),
-  main = "Master Flats",
-  breaks = 100
-)
-
-for (i in 2:length(masterFlats)) {
-  hist(masterFlats[[i]],
-       col = colors[[i]],
-       breaks = 100,
-       add = T)
-}
-
-legend("topright",
-       c(unlist(scienceFrameFilters)),
-       col = c(unlist(colors)),
-       lwd = 5)

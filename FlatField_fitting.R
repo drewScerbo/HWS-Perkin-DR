@@ -1,0 +1,84 @@
+# FlatField fitting to a histogram
+# Must run Filter_Image_Processing_Script.R to get masterflats
+
+colors <-
+  list(rgb(1, 0, 0, 0.5),
+       rgb(0, 0, 1, 0.5),
+       rgb(0, 1, 0, 0.5),
+       rgb(1, 0, 1, 0.5),
+       rgb(1, 1, 0, 0.5))
+
+masterFlats <- list(masterGFlat,
+                    masterRFlat,
+                    masterIFlat,
+                    masterYFlat,
+                    masterZFlat)
+
+scienceFrameFilters <- list("g Filter",
+                            "r Filter",
+                            "i Filter",
+                            "y Filter",
+                            "z Filter")
+
+for (i in length(masterFlats):1) {
+  if (is.nan(masterFlats[[i]][xNumber / 2, yNumber / 2])) {
+    masterFlats[[i]] <- NULL
+    colors[[i]] <- NULL
+    scienceFrameFilters[[i]] <- NULL
+  }
+}
+
+xmin <- .Machine$integer.max # start at maximum possible value
+xmax <- .Machine$integer.min # start at minimum possible value
+for (i in length(masterFlats):1) {
+  xmin <- min(xmin, c(masterFlats[[i]]))
+  xmax <- max(xmax, c(masterFlats[[i]]))
+}
+
+histOfFlats[[1]] <- hist(
+  masterFlats[[1]],
+  col = colors[[1]],
+  xlim = c(xmin, xmax),
+  main = "Master Flats",
+  breaks = 100,
+  freq = TRUE
+)
+
+for (i in 2:length(masterFlats)) {
+  histOfFlats[[i]] <- hist(
+    masterFlats[[i]],
+    col = colors[[i]],
+    breaks = 100,
+    freq = TRUE,
+    add = T
+  )
+}
+
+legend("topright",
+       c(unlist(scienceFrameFilters)),
+       col = c(unlist(colors)),
+       lwd = 5)
+
+counts <- list()
+stDevs <- list()
+summarys <- list()
+
+for (i in length(histOfFlats)) {
+  counts[[i]] <- histOfFlats[[i]]$counts
+  summarys[[i]] <- summary(counts[[i]])
+  stDevs[[i]] <- sd(counts[[i]])
+}
+
+file.create(path)
+fileSummary <- file(path)
+titles <- c("Min:","1st Q:","Med:","Mean:","3rd Q:","Max:")
+
+for (i in length(histOfFlats)) {
+  writeLines(scienceFrameFilters[[i]],fileSummary)
+  for (j in range(1,6)) {
+    writeLines(paste(titles[[j]],summarys[[i]][[j]]),fileSummary)
+  }
+  writeLines(paste("St. Dev:",stDevs[[i]]),fileSummary)
+  writeLines("",fileSummary) # write a blank line to seperate flats
+}
+close(fileSummary)

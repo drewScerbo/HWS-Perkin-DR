@@ -28,14 +28,6 @@ for (i in length(masterFlats):1) {
   }
 }
 
-# xmin <- .Machine$integer.max # start at maximum possible value
-# xmax <- .Machine$integer.min # start at minimum possible value
-# for (i in length(masterFlats):1) {
-#   xmin <- min(xmin, c(masterFlats[[i]]))
-#   xmax <- max(xmax, c(masterFlats[[i]]))
-# }
-
-
 histOfFlats <- list()
 histOfFlats[[1]] <- hist(
   masterFlats[[1]],
@@ -65,28 +57,26 @@ counts <- list()
 stDevs <- list()
 summarys <- list()
 
-for (i in length(histOfFlats)) {
-  counts[[i]] <- histOfFlats[[i]]$counts
-  summarys[[i]] <- summary(counts[[i]])
-  stDevs[[i]] <- sd(counts[[i]])
+for (i in 1:length(masterFlats)) {
+  summarys[[i]] <- summary(masterFlats[[i]])
+  stDevs[[i]] <- sd(masterFlats[[i]])
 }
 
-path <-
-  "C:/Users/drews/OneDrive/Documents/Hobart 16-17/Astronomy"
+  # "C:/Users/drews/OneDrive/Documents/Hobart 16-17/Astronomy"
+path <- "/Users/drewScerbo/Desktop/20170911/FlatFieldSummary.txt"
 
 file.create(path)
 fileSummary <- file(path)
 titles <- c("Min:","1st Q:","Med:","Mean:","3rd Q:","Max:")
+# cat("FlatFlield Summary;",file = fileSummary)
+lines <- "FlatFlield Summary;\n"
 
-for (i in length(histOfFlats)) {
-  # writeLines(scienceFrameFilters[[i]],fileSummary)
-  print(paste(scienceFrameFilters[[i]],fileSummary))
-  for (j in range(1,6)) {
-    # writeLines(paste(titles[[j]],summarys[[i]][[j]]),fileSummary)
-    print(paste(titles[[j]],summarys[[i]][[j]]))
+for (i in 1:length(masterFlats)) {
+  lines <- paste(lines,scienceFrameFilters[[i]],sep = "\n")
+  for (j in 1:6) {
+    lines <- paste(lines,summarys[[i]][[j]],sep = "\n")
   }
-  # writeLines(paste("St. Dev:",stDevs[[i]]),fileSummary)
-  print(paste("St. Dev:",stDevs[[i]]))
-  # writeLines("",fileSummary) # write a blank line to seperate flats
+  lines <- paste(lines,paste("St. Dev:",stDevs[[i]]),"",sep = "\n")
 }
-# close(fileSummary)
+writeLines(lines,con = fileSummary)
+close(fileSummary)

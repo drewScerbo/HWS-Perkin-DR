@@ -1,8 +1,8 @@
 #install.packages("FITSio")
 library(FITSio)
 
-# give file path to directory containing 
-s <- "C:/Users/drews/OneDrive/Documents/Hobart_16-17/Astronomy/light files 2"
+# give file path to directory containing images
+s <- "C:/Users/drews/OneDrive/Documents/Hobart_16-17/Astronomy"
 
 # get all the .fits files
 files <- list.files(path=s,pattern="*.fits", full.names=T, recursive=TRUE)

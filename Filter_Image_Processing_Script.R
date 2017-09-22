@@ -5,9 +5,9 @@
 library(FITSio)
 
 # get all the .fits files
-path <- "/Users/drewScerbo/Downloads/images"
-# path <-
-#   "C:/Users/drews/OneDrive/Documents/Hobart 16-17/Astronomy/error images"
+# s <- "/Users/drewScerbo/Downloads/images"
+s <-
+  "C:/Users/drews/OneDrive/Documents/Hobart 16-17/Astronomy/images"
 
 files <-
   list.files(
@@ -67,9 +67,10 @@ for (x in files) {
     }
   } else if (s == "Light Frame") {
     expTime <- Y$hdr[which(Y$hdr == "EXPTIME") + 1]
-    if (which(neededExposureTimes == expTime) == 0)
+    if (is.element(expTime,neededExposureTimes)){
       neededExposureTimes[[length(neededExposureTimes) + 1]] <-
         expTime
+    }
   }
   print(paste("Read in", counter, "of", count))
 }
@@ -107,9 +108,10 @@ for (x in darkFrameFiles) {
   s <- Y$hdr[which(Y$hdr == "EXPTIME") + 1]
   counter <- counter + 1
   
-  i <- which(exposureTimes[[y]] == s){
-    exposureTimeFiles[[y]][[length(exposureTimeFiles[[y]]) + 1]] <- x
-  }
+  i <- which(exposureTimes == s)
+  
+  exposureTimeFiles[[i]][[length(exposureTimeFiles[[i]]) + 1]] <- x
+  
   
   print(paste("Read in", counter, "dark frames of", count))
 }

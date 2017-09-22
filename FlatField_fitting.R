@@ -28,17 +28,19 @@ for (i in length(masterFlats):1) {
   }
 }
 
-xmin <- .Machine$integer.max # start at maximum possible value
-xmax <- .Machine$integer.min # start at minimum possible value
-for (i in length(masterFlats):1) {
-  xmin <- min(xmin, c(masterFlats[[i]]))
-  xmax <- max(xmax, c(masterFlats[[i]]))
-}
+# xmin <- .Machine$integer.max # start at maximum possible value
+# xmax <- .Machine$integer.min # start at minimum possible value
+# for (i in length(masterFlats):1) {
+#   xmin <- min(xmin, c(masterFlats[[i]]))
+#   xmax <- max(xmax, c(masterFlats[[i]]))
+# }
 
+
+histOfFlats <- list()
 histOfFlats[[1]] <- hist(
   masterFlats[[1]],
   col = colors[[1]],
-  xlim = c(xmin, xmax),
+  xlim = c(.9, 1.1),
   main = "Master Flats",
   breaks = 100,
   freq = TRUE
@@ -69,16 +71,22 @@ for (i in length(histOfFlats)) {
   stDevs[[i]] <- sd(counts[[i]])
 }
 
+path <-
+  "C:/Users/drews/OneDrive/Documents/Hobart 16-17/Astronomy"
+
 file.create(path)
 fileSummary <- file(path)
 titles <- c("Min:","1st Q:","Med:","Mean:","3rd Q:","Max:")
 
 for (i in length(histOfFlats)) {
-  writeLines(scienceFrameFilters[[i]],fileSummary)
+  # writeLines(scienceFrameFilters[[i]],fileSummary)
+  print(paste(scienceFrameFilters[[i]],fileSummary))
   for (j in range(1,6)) {
-    writeLines(paste(titles[[j]],summarys[[i]][[j]]),fileSummary)
+    # writeLines(paste(titles[[j]],summarys[[i]][[j]]),fileSummary)
+    print(paste(titles[[j]],summarys[[i]][[j]]))
   }
-  writeLines(paste("St. Dev:",stDevs[[i]]),fileSummary)
-  writeLines("",fileSummary) # write a blank line to seperate flats
+  # writeLines(paste("St. Dev:",stDevs[[i]]),fileSummary)
+  print(paste("St. Dev:",stDevs[[i]]))
+  # writeLines("",fileSummary) # write a blank line to seperate flats
 }
-close(fileSummary)
+# close(fileSummary)

@@ -121,8 +121,8 @@ darkCounter <- function(files) {
   masterDark <-
     array(0, dim = c(xNumber, yNumber))
   for (count in 1:length(files)) {
-    if (count == 1)
-      next
+    # if (count == 1) # skip the 
+    #   next
     counter <- counter + 1
     Y <- readFITS(x)
     masterDark <- masterDark + Y$imDat - masterBias
@@ -138,21 +138,27 @@ for (i in 1:length(exposureTimeFiles)) {
     darkCounter(exposureTimeFiles[[i]])
 }
 
-
-
-# Finished masterDarks
-
 if (length(neededExposureTimes) > 0) {
   for (x in neededExposureTimes) {
     difference <- c(.Machine$integer.max,-1)
+    times <- c()
     for (y in exposureTimes) {
       print(paste(x,y))
       diff <- abs(strtoi(y) - strtoi(x))
-      if (diff < difference) difference <- c(diff,y)
+      if (diff < difference) {
+        difference <- diff
+        times <- c(x,y)
+      }
     }
-    ####
+    # times = [needed exposure time, exposure time]
+    
+    
+    #### TODO scale darks
   }
 }
+
+# Finished masterDarks
+
 
 # Average the value of each flat field and sort by filters
 flatFunction <- function(f) {
@@ -164,27 +170,28 @@ flatFunction <- function(f) {
     img <- Y$imDat
     avg <- 0
     
-    # use master dark in exposure time instead of bias ################## 
-    
     # normalize the image
     avg <- mean(img - masterBias) 
     masterFlat <- masterFlat + ((img - masterBias) / avg)
     flatCounter <- flatCounter + 1
-    
-    
   }
   
-  ###### add master bias field into header #####################
+  if (is.nan(masterFlat[xNumber/2,yNumber/2])) return(NULL)
+  else return(masterFlat/flatCounter)
+}
+###### add master bias field into header #####################
   # count <- length(Y$hdr)
   # Y$hdr[[count + 1]] <- "Master Bias"
   # Y$hdr[[count + 2]] <- ""
-  return (masterFlat / flatCounter)
-}
-
 # master flat for each filter
 masterGFlat <- flatFunction(gFlatFiles)
+if (is.null(masterGFlat)) remove(masterGFlat)
 masterRFlat <- flatFunction(rFlatFiles)
+if (is.null(masterRFlat)) remove(masterRFlat)
 masterIFlat <- flatFunction(iFlatFiles)
+if (is.null(masterIFlat)) remove(masterIFlat)
 masterYFlat <- flatFunction(yFlatFiles)
+if (is.null(masterYFlat)) remove(masterYFlat)
 masterZFlat <- flatFunction(zFlatFiles)
+if (is.null(masterZFlat)) remove(masterZFlat)
 remove(gFlatFiles, rFlatFiles, iFlatFiles, yFlatFiles, zFlatFiles)

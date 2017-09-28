@@ -5,9 +5,9 @@
 library(FITSio)
 
 # get all the .fits files
-# s <- "/Users/drewScerbo/Downloads/images"
-s <-
-  "C:/Users/drews/OneDrive/Documents/Hobart 16-17/Astronomy/images"
+s <- "/Users/drewScerbo/Desktop/20170911"
+# s <-
+#   "C:/Users/drews/OneDrive/Documents/Hobart 16-17/Astronomy/images"
 
 files <-
   list.files(
@@ -51,15 +51,15 @@ for (x in files) {
   } else if (s == "Flat Field") {
     filter <- Y$hdr[which(Y$hdr == "FILTER") + 1]
     
-    if (filter == "g''") {
+    if (filter == "g''" || filter == "gp") {
       gFlatFiles[[length(gFlatFiles) + 1]] <- x
-    } else if (filter == "i''") {
+    } else if (filter == "i''" || filter == "ip") {
       iFlatFiles[[length(iFlatFiles) + 1]] <- x
-    } else if (filter == "r''") {
+    } else if (filter == "r''" || filter == "rp") {
       rFlatFiles[[length(rFlatFiles) + 1]] <- x
-    } else if (filter == "y''") {
+    } else if (filter == "y''" || filter == "yp") {
       yFlatFiles[[length(yFlatFiles) + 1]] <- x
-    } else if (filter == "z''") {
+    } else if (filter == "z''" || filter == "zp") {
       zFlatFiles[[length(zFlatFiles) + 1]] <- x
     } else {
       print("NO FILTER: file should have a filter")
@@ -132,12 +132,12 @@ darkCounter <- function(files) {
 }
 
 masterDarks <- list()
-
-for (i in 1:length(exposureTimeFiles)) {
-  masterDarks[[length(masterDarks) + 1]] <-
-    darkCounter(exposureTimeFiles[[i]])
+if (length(exposureTimeFiles) > 0) {
+  for (i in 1:length(exposureTimeFiles)) {
+    masterDarks[[length(masterDarks) + 1]] <-
+      darkCounter(exposureTimeFiles[[i]])
+  }
 }
-
 if (length(neededExposureTimes) > 0) {
   for (x in neededExposureTimes) {
     difference <- c(.Machine$integer.max,-1)
@@ -151,7 +151,9 @@ if (length(neededExposureTimes) > 0) {
       }
     }
     # times = [needed exposure time, exposure time]
+    dark <- masterDarks[[which(exposureTimes,times[[2]])]]
     
+    # scaledDark <- dark*
     
     #### TODO scale darks
   }
@@ -168,7 +170,6 @@ flatFunction <- function(f) {
   for (file in f) {
     Y <- readFITS(file)
     img <- Y$imDat
-    avg <- 0
     
     # normalize the image
     avg <- mean(img - masterBias) 
@@ -184,14 +185,9 @@ flatFunction <- function(f) {
   # Y$hdr[[count + 1]] <- "Master Bias"
   # Y$hdr[[count + 2]] <- ""
 # master flat for each filter
-masterGFlat <- flatFunction(gFlatFiles)
-if (is.null(masterGFlat)) remove(masterGFlat)
-masterRFlat <- flatFunction(rFlatFiles)
-if (is.null(masterRFlat)) remove(masterRFlat)
-masterIFlat <- flatFunction(iFlatFiles)
-if (is.null(masterIFlat)) remove(masterIFlat)
-masterYFlat <- flatFunction(yFlatFiles)
-if (is.null(masterYFlat)) remove(masterYFlat)
-masterZFlat <- flatFunction(zFlatFiles)
-if (is.null(masterZFlat)) remove(masterZFlat)
+if (length(gFlatFiles) > 0) masterGFlat <- flatFunction(gFlatFiles)
+if (length(rFlatFiles) > 0) masterRFlat <- flatFunction(rFlatFiles)
+if (length(iFlatFiles) > 0) masterIFlat <- flatFunction(iFlatFiles)
+if (length(yFlatFiles) > 0) masterYFlat <- flatFunction(yFlatFiles)
+if (length(zFlatFiles) > 0) masterZFlat <- flatFunction(zFlatFiles)
 remove(gFlatFiles, rFlatFiles, iFlatFiles, yFlatFiles, zFlatFiles)

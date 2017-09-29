@@ -177,7 +177,7 @@ f <- function(par) {
   modelY <- k1 * exp(-0.5 * ((x - m1) / sd1) ^ 2)
   modelY <- modelY + k2 * exp(-0.5 * ((x - m2) / sd2) ^ 2)
   
-  plot(x, y, xlim = c(0.95, 1.07))
+  plot(x, y, xlim = c(.8, 1.2))
   lines(x, modelY, col = 'red')
   return(modelY)
 }
@@ -197,14 +197,63 @@ f2 <- function(par) {
 }
 x <- histOfFlats[[1]]$mids
 y <- histOfFlats[[1]]$counts
-guess <- c(.98, 0.005, 3.1e5, 1.04, 0.001, 2e5)
+guess1 <- c(.98, 0.005, 3.1e5, 1.04, 0.005, 2e5)
 opt <-
-  optim(guess,
+  optim(guess1,
         f2,
-        method = "BFGS",
+        method = "CG",
         control = list(reltol = 1e-11))
-guess
-opt$par
-last
-last <- opt$par
-sums <- f(opt$par)
+pdf(
+  paste(
+    "/Users/drewScerbo/Desktop/20170911/",
+    scienceFrameFilters[[1]],
+    ".pdf",
+    sep = ""
+  ),
+  width = 400,
+  height = 400
+)
+yModel1 <- f(opt$par)
+dev.off()
+
+x <- histOfFlats[[2]]$mids
+y <- histOfFlats[[2]]$counts
+guess2 <- c(1, 0.01, 2.6e6, 1, 0.01, 1.6e6)
+opt <-
+  optim(guess2,
+        f2,
+        method = "CG",
+        control = list(reltol = 1e-11))
+pdf(
+  paste(
+    "/Users/drewScerbo/Desktop/20170911/",
+    scienceFrameFilters[[2]],
+    ".pdf",
+    sep = ""
+  ),
+  width = 400,
+  height = 400
+)
+yModel2 <- f(opt$par)
+dev.off()
+
+x <- histOfFlats[[3]]$mids
+y <- histOfFlats[[3]]$counts
+guess3 <- c(1, 0.05, 1.5e6, 1, 0.01, 1.4e6)
+opt <-
+  optim(guess3,
+        f2,
+        method = "CG",
+        control = list(reltol = 1e-11))
+pdf(
+  paste(
+    "/Users/drewScerbo/Desktop/20170911/",
+    scienceFrameFilters[[3]],
+    ".pdf",
+    sep = ""
+  ),
+  width = 400,
+  height = 400
+)
+yModel3 <- f(opt$par)
+dev.off()

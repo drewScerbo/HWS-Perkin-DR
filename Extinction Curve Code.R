@@ -101,7 +101,9 @@ getNStar <- function (f,masterFlat,NStar){
     i <- i - 1
     print(paste(i,"images left to count"))
     
-    img <- (Y$imDat  - masterBias - masterDark) / masterFlat
+    expTime <- Y$hdr[which(Y$hdr == "EXPTIME") + 1]
+    dark <- masterDarks[[which(exposureTimes == expTime)]]
+    img <- (Y$imDat - dark) / masterFlat
     counter <- 0
     count <- 0
     

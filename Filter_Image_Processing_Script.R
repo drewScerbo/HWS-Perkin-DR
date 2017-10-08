@@ -4,20 +4,20 @@
 # install.packages("FITSio")
 library(FITSio)
 
-# get all the .fits files
-s <- "/Users/drewScerbo/Desktop/ObservingImages/20170423/tester"
-# s <-
+## get all the .fits files
+p <- "/Users/drewScerbo/Desktop/ObservingImages/20170423/tester"
+# p <-
 #   "C:/Users/drews/OneDrive/Documents/Hobart 16-17/Astronomy/images"
-
 files <-
   list.files(
-    path = s,
+    path = p,
     pattern = "*.fits",
     full.names = T,
     recursive = TRUE
   )
 print(paste("number of files:", length(files)), quote = FALSE)
 
+## number of pixels in each image
 xNumber <- 3352
 yNumber <- 2532
 
@@ -32,13 +32,14 @@ yFlatFiles <- list()
 neededExposureTimes <- list()
 
 # sort each file into Bias frame, Dark frame, or Flat Field and by filter
-# if flat filed. Also takes in all needed exposure times of light frames
+# if flat field. Also takes in all needed exposure times of light frames
 masterBias <-
   array(0, dim = c(xNumber, yNumber))
 counter <- 0
 count <- length(files)
 for (x in files) {
   counter <- counter + 1
+  if (length(grep('mod_',basename(x))) > 0) next
   Y <- readFITS(x)
   s <- Y$hdr[which(Y$hdr == "IMAGETYP") + 1]
   
@@ -74,7 +75,7 @@ for (x in files) {
     }
     lightFiles[[length(lightFiles) + 1]] <- x
   }
-  print(paste("Read in", counter, "of", count,":",s))
+  print(paste("Read in", counter, "of", count, ":", s))
 }
 
 remove(files)
@@ -102,29 +103,65 @@ for (x in darkFrameFiles) {
     neededExposureTimes[[i]] <- NULL
 }
 
+question <- "Enter a file path for darks with exposure time '"
+for (exp in neededExposureTimes) {
+  # for each exposure time without a dark ask for a filepath with more
+  # dark files of the same exposure time
+  x <-
+    readline(prompt = paste(question, exp, "':", sep = ''))
+  if (file.exists(x)) {
+    files <-
+      list.files(
+        path = p,
+        pattern = "*.fits",
+        full.names = T,
+        recursive = TRUE
+      )
+    
+    # add the new darks with the right exposure time
+    addedFrames <- FALSE
+    count <- 0
+    for (f in files) {
+      Y <- readFITS(f)
+      s <- Y$hdr[which(Y$hdr == "IMAGETYP") + 1]
+      expTime <- Y$hdr[which(Y$hdr == "EXPTIME") + 1]
+      if (s == 'Dark Frame' && expTime == exp) {
+        addedFrames <- TRUE
+        darkFrameFiles[[length(darkFrameFiles) + 1]] <- f
+        count <- count + 1
+      }
+    }
+    print(paste('added', count, 'dark frames of exposure time', exp))
+    if (addedFrames) {
+      neededExposureTimes[[which(neededExposureTimes == exp)]] <- NULL
+    }
+  }
+}
+
+# create an array of list of lists, where each list holds all the files
+# of dark frames that share the same exposure time
 exposureTimeDarkFiles <-
   array(list(), dim = c(1, length(exposureTimes)))
 
-# sort dark frames by exposure time and
+# sort dark frames by exposure time
 for (x in darkFrameFiles) {
   Y <- readFITS(x)
   s <- Y$hdr[which(Y$hdr == "EXPTIME") + 1]
   counter <- counter + 1
   i <- which(exposureTimes == s)
   
+  # add to the particular inner list that holds the same exposure time
   exposureTimeDarkFiles[[i]][[length(exposureTimeDarkFiles[[i]]) + 1]] <-
     x
   
   print(paste("Read in", counter, "dark frames of", count))
 }
 
-# function to average dark frames into a master dark (and bias) frame
+# function to average dark frames into a master dark frame
 darkCounter <- function(files) {
   masterDark <-
     array(0, dim = c(xNumber, yNumber))
   for (count in 1:length(files)) {
-    # if (count == 1) # skip the
-    #   next
     counter <- counter + 1
     Y <- readFITS(x)
     masterDark <- masterDark + Y$imDat - masterBias
@@ -180,12 +217,15 @@ if (length(zFlatFiles) > 0)
   masterZFlat <- flatFunction(zFlatFiles)
 remove(gFlatFiles, rFlatFiles, iFlatFiles, yFlatFiles, zFlatFiles)
 
+dir.create(file.path(p, 'modified images'))
+
 writeCalScience <- function (science, x, Y) {
-  fName <- basename(x)
-  dirName <- dirname(x)
+  fName <- paste("mod_",basename(x),sep = '')
+  dirName <- file.path(dirname(x),'modified images')
+  dir.create(dirName,showWarnings = FALSE)
   bzero <- Y$hdr[which(Y$hdr == "BZERO") + 1]
   bscale <- Y$hdr[which(Y$hdr == "BSCALE") + 1]
-  f <- paste(dirName,"/mod_",fName,sep = "")
+  f <- file.path(dirName,fName)
   writeFITSim(
     calScience,
     file = f,
@@ -193,53 +233,56 @@ writeCalScience <- function (science, x, Y) {
     header = Y$header,
     bscale = strtoi(bscale)
   )
+  return(fName)
 }
 
 counter <- 0
 count <- length(lightFiles)
 # if (length(lightFiles) > 0) {
-  for (x in lightFiles) {
-    counter <- counter + 1
-    Y <- readFITS(x)
-    expTime <- Y$hdr[which(Y$hdr == "EXPTIME") + 1]
-    difference <- .Machine$integer.max
-    times <- c()
-    a <- strtoi(substr(expTime, 1, nchar(expTime) - 1))
-    for (y in exposureTimes) {
-      b <- strtoi(substr(y, 1, nchar(y) - 1))
-      diff <- abs(a - b)
-      if (diff < difference) {
-        difference <- diff
-        times <- c(a, b)
-      }
+for (x in lightFiles) {
+  counter <- counter + 1
+  Y <- readFITS(x)
+  expTime <- Y$hdr[which(Y$hdr == "EXPTIME") + 1]
+  difference <- .Machine$integer.max
+  times <- c()
+  a <- strtoi(substr(expTime, 1, nchar(expTime) - 1))
+  for (y in exposureTimes) {
+    b <- strtoi(substr(y, 1, nchar(y) - 1))
+    diff <- abs(a - b)
+    if (diff < difference) {
+      difference <- diff
+      times <- c(a, b)
     }
-    filter <- Y$hdr[which(Y$hdr == "FILTER") + 1]
-    
-    if ((filter == "g''" || filter == "gp") && exists("masterGFlat")) {
-      masterFlat <- masterGFlat  
-    } else if ((filter == "i''" || filter == "ip") && exists("masterIFlat")) {
-      masterFlat <- masterIFlat  
-    } else if ((filter == "r''" || filter == "rp") && exists("masterRFlat")) {
-      masterFlat <- masterRFlat  
-    } else if ((filter == "y''" || filter == "yp") && exists("masterYFlat")) {
-      masterFlat <- masterYFlat  
-    } else if ((filter == "z''" || filter == "zp") && exists("masterZFlat")) {
-      masterFlat <- masterZFlat  
-    } else {
-      print(paste("there is no",filter,"filter"))
-      stopifnot(FALSE)
-    } 
-    
-    # times = [needed exposure time, dark exposure time]
-    # dark = closest dark frame
-    expTime <- paste(times[[2]],".",sep = "")
-    dark <- masterDarks[[which(exposureTimes == expTime)]]
-    calScience <-
-      Y$imDat - masterBias - times[[1]] * dark / times[[2]]
-    calScience <- calScience/masterFlat
-    writeCalScience(calScience,x,Y)
-    print(paste("Wrote",counter,"of",count,"light files"))
   }
-# }
-
-# asks for other nights that have calibration images
+  filter <- Y$hdr[which(Y$hdr == "FILTER") + 1]
+  
+  if ((filter == "g''" ||
+       filter == "gp") && exists("masterGFlat")) {
+    masterFlat <- masterGFlat
+  } else if ((filter == "i''" ||
+              filter == "ip") && exists("masterIFlat")) {
+    masterFlat <- masterIFlat
+  } else if ((filter == "r''" ||
+              filter == "rp") && exists("masterRFlat")) {
+    masterFlat <- masterRFlat
+  } else if ((filter == "y''" ||
+              filter == "yp") && exists("masterYFlat")) {
+    masterFlat <- masterYFlat
+  } else if ((filter == "z''" ||
+              filter == "zp") && exists("masterZFlat")) {
+    masterFlat <- masterZFlat
+  } else {
+    print(paste("there is no", filter, "filter"))
+    stopifnot(FALSE)
+  }
+  
+  # times = [needed exposure time, dark exposure time]
+  # dark = closest dark frame
+  expTime <- paste(times[[2]], ".", sep = "")
+  dark <- masterDarks[[which(exposureTimes == expTime)]]
+  calScience <-
+    Y$imDat - masterBias - times[[1]] * dark / times[[2]]
+  calScience <- calScience / masterFlat
+  fName <- writeCalScience(calScience, x, Y)
+  print(paste("Wrote", counter, "of", count, "light files as",fName))
+}

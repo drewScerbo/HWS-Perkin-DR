@@ -9,18 +9,21 @@ if (exists("masterGFlat")) {
   colors[[length(colors) + 1]] <- rgb(1, 0, 0, 0.5)
   scienceFrameFilters[[length(scienceFrameFilters) + 1]] <-
     "g Filter"
+  print("added g")
 }
 if (exists("masterRFlat")) {
   masterFlats[[length(masterFlats) + 1]] <- masterRFlat
   colors[[length(colors) + 1]] <- rgb(0, 0, 1, 0.5)
   scienceFrameFilters[[length(scienceFrameFilters) + 1]] <-
     "r Filter"
+  print("added r")
 }
 if (exists("masterIFlat")) {
   masterFlats[[length(masterFlats) + 1]] <- masterIFlat
   colors[[length(colors) + 1]] <- rgb(0, 1, 0, 0.5)
   scienceFrameFilters[[length(scienceFrameFilters) + 1]] <-
     "i Filter"
+  print("added i")
 }
 if (exists("masterYFlat")) {
   masterFlats[[length(masterFlats) + 1]] <- masterYFlat
@@ -53,6 +56,7 @@ histOfFlats[[1]] <- hist(
   breaks = 200,
   freq = TRUE
 )
+print(paste("added",1))
 
 for (i in 2:length(masterFlats)) {
   histOfFlats[[i]] <- hist(
@@ -62,6 +66,7 @@ for (i in 2:length(masterFlats)) {
     freq = TRUE,
     add = T
   )
+  print(paste("added",i))
 }
 dev.off()
 
@@ -83,7 +88,7 @@ histOfFlats[[1]] <- hist(
   freq = TRUE
 )
 
-for (i in 2:length(histOfFlats)) {
+for (i in 2:length(masterFlats)) {
   histOfFlats[[i]] <- hist(
     masterFlats[[i]],
     col = colors[[i]],
@@ -92,20 +97,20 @@ for (i in 2:length(histOfFlats)) {
     add = T
   )
 }
-
+length(histOfFlats)
 legend("topright",
        c(unlist(scienceFrameFilters)),
        col = c(unlist(colors)),
        lwd = 5)
 
 percentageOut <- list()
-path <-
-  "C:/Users/drews/OneDrive/Documents/Hobart 16-17/Astronomy/"
+# p <-
+#   "C:/Users/drews/OneDrive/Documents/Hobart 16-17/Astronomy/"
 
-# path <- "/Users/drewScerbo/Desktop/20170911/FlatFieldSummary.txt"
+p <- "/Users/drewScerbo/Desktop/20170911/"
 
-file.create(paste(path, "FlatFieldSummary.txt", sep = ""))
-fileSummary <- file(paste(path, "FlatFieldSummary.txt", sep = ""))
+file.create(file.path(p, "FlatFieldSummary.txt"))
+fileSummary <- file.path(p, "FlatFieldSummary.txt", sep = "")
 titles <- c("Min:", "1st Q:", "Med:", "Mean:", "3rd Q:", "Max:")
 lines <- "FlatFlield Summary:\n"
 
@@ -199,14 +204,14 @@ remove(masterFlats)
 
 x <- histOfFlats[[1]]$mids
 y <- histOfFlats[[1]]$counts
-guess1 <- c(.98, 0.01, 4e5, 1.04, 0.005, 1.8e5)
+guess1 <- c(.98, 5e-3, 3.1e5, 1.04, 1e-3, 1.9e5)
 opt <-
   optim(guess1,
         f2,
         method = "CG",
         control = list(reltol = 1e-11))
 # pdf(
-#   paste(path,
+#   paste(p,
 #         scienceFrameFilters[[1]],
 #         ".pdf",
 #         sep = ""),
@@ -218,14 +223,14 @@ yModel1 <- f(opt$par,1)
 
 x <- histOfFlats[[2]]$mids
 y <- histOfFlats[[2]]$counts
-guess2 <- c(1, 0.03, 7.15e5, 1.04, 0.01, 2.8e5)
+guess2 <- c(1, 0.03, 2.8e6, 1.04, 1e-3, 2.8e6)
 opt <-
   optim(guess2,
         f2,
         method = "CG",
         control = list(reltol = 1e-11))
 # pdf(
-#   paste(path,
+#   paste(p,
 #         scienceFrameFilters[[2]],
 #         ".pdf",
 #         sep = ""),
@@ -235,21 +240,22 @@ opt <-
 yModel2 <- f(opt$par,2)
 # dev.off()
 # 
-# x <- histOfFlats[[3]]$mids
-# y <- histOfFlats[[3]]$counts
-# guess3 <- c(1, 0.05, 1.5e6, 1, 0.01, 1.4e6)
-# opt <-
-#   optim(guess3,
-#         f2,
-#         method = "CG",
-#         control = list(reltol = 1e-11))
+
+x <- histOfFlats[[3]]$mids
+y <- histOfFlats[[3]]$counts
+guess3 <- c(1, 0.05, 1.5e6, 1, 0.01, 1.4e6)
+opt <-
+  optim(guess3,
+        f2,
+        method = "CG",
+        control = list(reltol = 1e-11))
 # pdf(
-#   paste(path,
+#   paste(p,
 #         scienceFrameFilters[[3]],
 #         ".pdf",
 #         sep = ""),
 #   width = 400,
 #   height = 400
 # )
-# yModel3 <- f(opt$par,2)
+yModel3 <- f(opt$par,3)
 # dev.off()

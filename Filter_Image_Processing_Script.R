@@ -5,7 +5,7 @@
 library(FITSio)
 
 ## get all the .fits files
-p <- "/Users/drewScerbo/Desktop/ObservingImages/20170423/tester"
+p <- "/Users/drewScerbo/Desktop/ObservingImages/tester"
 # p <-
 #   "C:/Users/drews/OneDrive/Documents/Hobart 16-17/Astronomy/images"
 files <-
@@ -36,16 +36,23 @@ neededExposureTimes <- list()
 masterBias <-
   array(0, dim = c(xNumber, yNumber))
 counter <- 0
+biasCounter <- 0
+modCounter <- 0
 count <- length(files)
 for (x in files) {
   counter <- counter + 1
-  if (length(grep('mod_',basename(x))) > 0) next
+  if (length(grep('mod_',basename(x))) > 0) {
+    modCounter <- modCounter + 1
+    print(paste("Skipped",modCounter,"calibrated images."))
+    next
+  }
   Y <- readFITS(x)
   s <- Y$hdr[which(Y$hdr == "IMAGETYP") + 1]
   
   if (s == "Bias Frame") {
     # average all biases into a master bias field
     masterBias <- masterBias + Y$imDat
+    biasCounter <- biasCounter + 1
     
   } else if (s == "Dark Frame") {
     darkFrameFiles[[length(darkFrameFiles) + 1]] <- x
@@ -75,23 +82,25 @@ for (x in files) {
     }
     lightFiles[[length(lightFiles) + 1]] <- x
   }
-  print(paste("Read in", counter, "of", count, ":", s))
+  print(paste("Read in", counter, "of", count, "fits files:", s))
 }
 
 remove(files)
 
+## search in near folders for missing data
+
+
 # average the master bias
-if (counter > 0) {
-  masterBias <- masterBias / counter
-}
+if (biasCounter > 0) {
+  masterBias <- masterBias / biasCounter
+} else
+  masterBias <- NULL
 # Finished masterBias
 
-counter <- 0
-count <- length(darkFrameFiles)
-exposureTimes <- c() # list of exposure times of the darks
 
 # check if any light frame exposure times don't have a dark
 # with the same exposure time
+exposureTimes <- c() # list of exposure times of the darks
 for (x in darkFrameFiles) {
   Y <- readFITS(x)
   s <- Y$hdr[which(Y$hdr == "EXPTIME") + 1]
@@ -103,38 +112,37 @@ for (x in darkFrameFiles) {
     neededExposureTimes[[i]] <- NULL
 }
 
-question <- "Enter a file path for darks with exposure time '"
 for (exp in neededExposureTimes) {
   # for each exposure time without a dark ask for a filepath with more
   # dark files of the same exposure time
+  question <- "Enter a file path for darks with exposure time '"
   x <-
     readline(prompt = paste(question, exp, "':", sep = ''))
-  if (file.exists(x)) {
-    files <-
-      list.files(
-        path = p,
-        pattern = "*.fits",
-        full.names = T,
-        recursive = TRUE
-      )
-    
-    # add the new darks with the right exposure time
-    addedFrames <- FALSE
-    count <- 0
-    for (f in files) {
-      Y <- readFITS(f)
-      s <- Y$hdr[which(Y$hdr == "IMAGETYP") + 1]
-      expTime <- Y$hdr[which(Y$hdr == "EXPTIME") + 1]
-      if (s == 'Dark Frame' && expTime == exp) {
-        addedFrames <- TRUE
-        darkFrameFiles[[length(darkFrameFiles) + 1]] <- f
-        count <- count + 1
-      }
+  if (!file.exists(x)) next
+  files <-
+    list.files(
+      path = p,
+      pattern = "*.fits",
+      full.names = T,
+      recursive = TRUE
+    )
+  
+  # add the new darks with the right exposure time
+  addedFrames <- FALSE
+  counter <- 0
+  for (f in files) {
+    Y <- readFITS(f)
+    s <- Y$hdr[which(Y$hdr == "IMAGETYP") + 1]
+    expTime <- Y$hdr[which(Y$hdr == "EXPTIME") + 1]
+    if (s == 'Dark Frame' && expTime == exp) {
+      addedFrames <- TRUE
+      darkFrameFiles[[length(darkFrameFiles) + 1]] <- f
+      counter <- counter + 1
     }
-    print(paste('added', count, 'dark frames of exposure time', exp))
-    if (addedFrames) {
-      neededExposureTimes[[which(neededExposureTimes == exp)]] <- NULL
-    }
+  }
+  print(paste('added', counter, 'dark frames of exposure time', exp))
+  if (addedFrames) {
+    neededExposureTimes[[which(neededExposureTimes == exp)]] <- NULL
   }
 }
 
@@ -142,6 +150,8 @@ for (exp in neededExposureTimes) {
 # of dark frames that share the same exposure time
 exposureTimeDarkFiles <-
   array(list(), dim = c(1, length(exposureTimes)))
+count <- length(darkFrameFiles)
+counter <- 0
 
 # sort dark frames by exposure time
 for (x in darkFrameFiles) {
@@ -200,11 +210,7 @@ flatFunction <- function(f) {
     return(masterFlat / flatCounter)
 }
 
-###### add master bias field into header #####################
-# count <- length(Y$hdr)
-# Y$hdr[[count + 1]] <- "Master Bias"
-# Y$hdr[[count + 2]] <- ""
-# master flat for each filter
+# Create master flat for each filter
 if (length(gFlatFiles) > 0)
   masterGFlat <- flatFunction(gFlatFiles)
 if (length(rFlatFiles) > 0)
@@ -238,7 +244,6 @@ writeCalScience <- function (science, x, Y) {
 
 counter <- 0
 count <- length(lightFiles)
-# if (length(lightFiles) > 0) {
 for (x in lightFiles) {
   counter <- counter + 1
   Y <- readFITS(x)
@@ -286,3 +291,13 @@ for (x in lightFiles) {
   fName <- writeCalScience(calScience, x, Y)
   print(paste("Wrote", counter, "of", count, "light files as",fName))
 }
+
+# write master images
+# writeFITSim(masterBias,file = file.path(p,"master_bias.fits"))
+
+remove(a,b,count,counter,diff,difference,
+       exp,exposureTimes,expTime,filter,
+       i,modCounter,s,times,x,y,
+       fName,p,Y,dark,
+       neededExposureTimes,calScience,
+       exposureTimeDarkFiles)

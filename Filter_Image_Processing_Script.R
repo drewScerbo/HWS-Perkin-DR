@@ -3,9 +3,10 @@
 
 # install.packages("FITSio")
 library(FITSio)
+source('Image_Processing_Functions.R')
 
 ## get all the .fits files
-p <- "/Users/drewScerbo/Desktop/ObservingImages/tester"
+p <- "/Users/drewScerbo/Desktop/ObservingImages/20170414"
 # p <-
 #   "C:/Users/drews/OneDrive/Documents/Hobart 16-17/Astronomy/images"
 files <-
@@ -85,10 +86,18 @@ for (x in files) {
   print(paste("Read in", counter, "of", count, "fits files:", s))
 }
 
-remove(files)
-
+# remove(files)
 ## search in near folders for missing data
+original <- basename(p)
+other_directories = list.dirs(dirname(p),recursive = FALSE)
+other_directories = lapply(other_directories,basename)
+other_directories[[which(other_directories == original)]] <- NULL
+other_directories <- sort_files(other_directories,original) # near by directories in order by closest to original
 
+for (dir in other_directories[1]){
+  p2 <- file.path(dirname(p),dir)
+  
+}
 
 # average the master bias
 if (biasCounter > 0) {
@@ -167,19 +176,6 @@ for (x in darkFrameFiles) {
   print(paste("Read in", counter, "dark frames of", count))
 }
 
-# function to average dark frames into a master dark frame
-darkCounter <- function(files) {
-  masterDark <-
-    array(0, dim = c(xNumber, yNumber))
-  for (count in 1:length(files)) {
-    counter <- counter + 1
-    Y <- readFITS(x)
-    masterDark <- masterDark + Y$imDat - masterBias
-  }
-  masterDark <- masterDark / counter
-  return(masterDark)
-}
-
 masterDarks <- list()
 if (length(exposureTimeDarkFiles) > 0) {
   for (i in 1:length(exposureTimeDarkFiles)) {
@@ -189,26 +185,6 @@ if (length(exposureTimeDarkFiles) > 0) {
 }
 # Finished masterDarks
 
-# Average the value of each flat field and sort by filters
-flatFunction <- function(f) {
-  # Get average count of all pixels in an image
-  masterFlat <- array(0, dim = c(xNumber, yNumber))
-  flatCounter <- 0
-  for (file in f) {
-    Y <- readFITS(file)
-    img <- Y$imDat
-    
-    # normalize the image
-    avg <- mean(img - masterBias)
-    masterFlat <- masterFlat + ((img - masterBias) / avg)
-    flatCounter <- flatCounter + 1
-  }
-  
-  if (is.nan(masterFlat[xNumber / 2, yNumber / 2]))
-    return(NULL)
-  else
-    return(masterFlat / flatCounter)
-}
 
 # Create master flat for each filter
 if (length(gFlatFiles) > 0)
@@ -225,22 +201,6 @@ remove(gFlatFiles, rFlatFiles, iFlatFiles, yFlatFiles, zFlatFiles)
 
 dir.create(file.path(p, 'modified images'))
 
-writeCalScience <- function (science, x, Y) {
-  fName <- paste("mod_",basename(x),sep = '')
-  dirName <- file.path(dirname(x),'modified images')
-  dir.create(dirName,showWarnings = FALSE)
-  bzero <- Y$hdr[which(Y$hdr == "BZERO") + 1]
-  bscale <- Y$hdr[which(Y$hdr == "BSCALE") + 1]
-  f <- file.path(dirName,fName)
-  writeFITSim(
-    calScience,
-    file = f,
-    axDat = Y$axDat,
-    header = Y$header,
-    bscale = strtoi(bscale)
-  )
-  return(fName)
-}
 
 counter <- 0
 count <- length(lightFiles)

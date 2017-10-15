@@ -1,16 +1,5 @@
 ## functions used in Filter_Imgae_Processing_Script.R
 
-numberOfDays <- function(date) {
-  m <- format(date, format="%m")
-  
-  while (format(date, format="%m") == m) {
-    date <- date + 1
-  }
-  
-  return(as.integer(format(date - 1, format="%d")))
-}
-
-
 # function to compare two date directories
 # return > 0 if dir1 came first
 # return < 0 if dir2 came first
@@ -30,6 +19,8 @@ compare_dates <- function(dir1,dir2){
   return(as.numeric(d1 - d2))
 }
 
+# sorts 'basenames' directories by difference 
+# in time to the original directory
 sort_files <- function(basenames,original){
   differences <- c()
   files2 <- c()
@@ -46,9 +37,11 @@ sort_files <- function(basenames,original){
   return(df)
 }
 
-
-get_files_of_type <- function(p,type,fileList){
-  if (!file.exists(p)) return(fileList)
+# given a type of image to find and a directory to look
+# in, will return list of all files of that type
+# will sort by filter if type is 'Flat Field'
+get_files_of_type <- function(p,type){
+  if (!file.exists(p)) return(list())
   files <-
     list.files(
       path = p,
@@ -59,6 +52,7 @@ get_files_of_type <- function(p,type,fileList){
   counter <- 0
   modCounter <- 0
   count <- length(files)
+  fileList <- list()
   print(paste('Found',count,'more files in;'))
   print(p)
   

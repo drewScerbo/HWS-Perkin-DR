@@ -3,8 +3,10 @@
 
 # install.packages("FITSio")
 library(FITSio)
-source('Image_Processing_Functions.R')
+# script.dir <- dirname(sys.frame(1)$ofile)
+script.dir <- '/Users/drewScerbo/Documents/AstronomyF17/HWS-Perkin-DR'
 
+source(file.path(script.dir,'Image_Processing_Functions.R'))
 ## get all the .fits files
 p <- "/Users/drewScerbo/Desktop/ObservingImages/20170414"
 # p <-
@@ -40,6 +42,8 @@ counter <- 0
 biasCounter <- 0
 modCounter <- 0
 count <- length(files)
+flatFilters <- c()
+lightFilters <- c()
 for (x in files) {
   counter <- counter + 1
   if (length(grep('mod_',basename(x))) > 0) {
@@ -60,16 +64,16 @@ for (x in files) {
     
   } else if (s == "Flat Field") {
     filter <- Y$hdr[which(Y$hdr == "FILTER") + 1]
-    
+    if (!is.element(filter,flatFilters)) flatFilters <- c(flatFilters,filter)
     if (filter == "g''" || filter == "gp") {
       gFlatFiles[[length(gFlatFiles) + 1]] <- x
     } else if (filter == "i''" || filter == "ip") {
       iFlatFiles[[length(iFlatFiles) + 1]] <- x
     } else if (filter == "r''" || filter == "rp") {
       rFlatFiles[[length(rFlatFiles) + 1]] <- x
-    } else if (filter == "y''" || filter == "yp") {
+    } else if (filter == "Y''" || filter == "Yp") {
       yFlatFiles[[length(yFlatFiles) + 1]] <- x
-    } else if (filter == "z''" || filter == "zp") {
+    } else if (filter == "Z''" || filter == "Zp") {
       zFlatFiles[[length(zFlatFiles) + 1]] <- x
     } else {
       print("NO FILTER: file should have a filter")
@@ -77,10 +81,12 @@ for (x in files) {
     }
   } else if (s == "Light Frame") {
     expTime <- Y$hdr[which(Y$hdr == "EXPTIME") + 1]
+    filter <- Y$hdr[which(Y$hdr == "FILTER") + 1]
     if (!is.element(expTime, neededExposureTimes)) {
       neededExposureTimes[[length(neededExposureTimes) + 1]] <-
         expTime
     }
+    if (!is.element(filter,lightFilters)) lightFilters <- c(lightFilters,filter)
     lightFiles[[length(lightFiles) + 1]] <- x
   }
   print(paste("Read in", counter, "of", count, "fits files:", s))
@@ -92,20 +98,62 @@ original <- basename(p)
 other_directories = list.dirs(dirname(p),recursive = FALSE)
 other_directories = lapply(other_directories,basename)
 other_directories[[which(other_directories == original)]] <- NULL
-other_directories <- sort_files(other_directories,original) # near by directories in order by closest to original
 
-for (dir in other_directories[1]){
-  p2 <- file.path(dirname(p),dir)
+# near by directories in order by closest to original
+other_directories <- sort_files(other_directories,original) 
+
+if (biasCounter <= 2) {
   
+  for (dir in other_directories[[1]]){
+    p2 <- file.path(dirname(p),dir)
+    biasFiles <- get_files_of_type(p2,'Bias Frame',NULL)
+    for (x in biasFiles){
+      Y <- readFITS(x)
+      masterBias <- masterBias + Y$imDat 
+      biasCounter <- biasCounter + 1
+    }
+    if (biasCounter > 2) break
+  }
 }
 
 # average the master bias
 if (biasCounter > 0) {
   masterBias <- masterBias / biasCounter
-} else
-  masterBias <- NULL
+  remove(biasCounter)
+} 
 # Finished masterBias
 
+if (length(darkFrameFiles) <= 2) {
+  for (dir in other_directories[[1]]){
+    p2 <- file.path(dirname(p),dir)
+    darkFrameFiles <- append(darkFrameFiles,get_files_of_type(p2,'Dark Frame',NULL))
+    if (length(darkFrameFiles) > 2) break
+  }
+}
+
+if (length(flatFilters) < length(lightFilters)) {
+  
+  for (dir in other_directories[[1]]){
+    neededFilters <- c()
+    for (f in lightFilters){
+      if (!is.element(f,flatFilters)) {neededFilters <- c(neededFilters,f)}
+    }
+    p2 <- file.path(dirname(p),dir)
+    flatFiles <- get_files_of_type(p2,'Flat Field',neededFilters)
+    gFlatFiles <- append(gFlatFiles,flatFiles[1])
+    iFlatFiles <- append(gFlatFiles,flatFiles[2])
+    rFlatFiles <- append(gFlatFiles,flatFiles[3])
+    yFlatFiles <- append(gFlatFiles,flatFiles[4])
+    zFlatFiles <- append(gFlatFiles,flatFiles[5])
+    flatFilters <- c()
+    if (length(gFlatFiles) <= 2) flatFilters <- c(flatFilters,"g''","gp")
+    if (length(iFlatFiles) <= 2) flatFilters <- c(flatFilters,"i''","ip")
+    if (length(rFlatFiles) <= 2) flatFilters <- c(flatFilters,"r''","rp")
+    if (length(yFlatFiles) <= 2) flatFilters <- c(flatFilters,"Y''","Yp")
+    if (length(zFlatFiles) <= 2) flatFilters <- c(flatFilters,"Z''","Zp")
+    if (length(neededFilters) == 0) break
+  }
+}
 
 # check if any light frame exposure times don't have a dark
 # with the same exposure time
@@ -230,11 +278,11 @@ for (x in lightFiles) {
   } else if ((filter == "r''" ||
               filter == "rp") && exists("masterRFlat")) {
     masterFlat <- masterRFlat
-  } else if ((filter == "y''" ||
-              filter == "yp") && exists("masterYFlat")) {
+  } else if ((filter == "Y''" ||
+              filter == "Yp") && exists("masterYFlat")) {
     masterFlat <- masterYFlat
-  } else if ((filter == "z''" ||
-              filter == "zp") && exists("masterZFlat")) {
+  } else if ((filter == "Z''" ||
+              filter == "Zp") && exists("masterZFlat")) {
     masterFlat <- masterZFlat
   } else {
     print(paste("there is no", filter, "filter"))

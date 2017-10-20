@@ -33,7 +33,7 @@ sort_files <- function(basenames, original) {
     }
   }
   df <- data.frame(file = files2, differnce = differences)
-  df <- df[order(differences), ]
+  df <- df[order(differences),]
   return(df)
 }
 
@@ -75,57 +75,40 @@ get_files_of_type <- function(p.dir, type, filters) {
   
   for (x in new_files) {
     fileCounter <- fileCounter + 1
-    print(paste('Looking at', fileCounter, 'of', count, 'files'))
     
-    Y <- readFITS(x)
-    s <- Y$hdr[which(Y$hdr == "IMAGETYP") + 1]
+    zz <- file(description = x, open = "rb")
+    header <- readFITSheader(zz)
+    hdr <- parseHdr(header)
+    s <- hdr[which(hdr == "IMAGETYP") + 1]
+    filter <- hdr[which(hdr == "FILTER") + 1]
     
     # sort by filter if flat field
     if (s == type && type == 'Flat Field') {
-      # print(paste(filter,'??',filters))
-      # print(filter %in% filters)
       if (filter %in% filters) {
         flatCounter[[get_filter_index(filter)]] <-
           flatCounter[[get_filter_index(filter)]] + 1
         counter <- counter + 1
-        print(paste('Found', counter, 'new flat files of type', s))
+        print(paste('Found', counter, 'new flat files of filter', filter))
         filter <- Y$hdr[which(Y$hdr == "FILTER") + 1]
         if (filter == "g''" || filter == "gp") {
-          flatFieldFilters[[1]][[length(gFiles) + 1]] <- x
+          gfiles[[length(gFiles) + 1]] <- x
         } else if (filter == "i''" || filter == "ip") {
-          flatFieldFilters[[2]][[length(gFiles) + 1]] <- x
+          iFiles[[2]][[length(iFiles) + 1]] <- x
         } else if (filter == "r''" || filter == "rp") {
-          flatFieldFilters[[3]][[length(gFiles) + 1]] <- x
+          rFiles[[length(gFiles) + 1]] <- x
         } else if (filter == "Y''" || filter == "Yp") {
-          flatFieldFilters[[4]][[length(gFiles) + 1]] <- x
-        } else if (filter == "Z''" || filter == "Zp") {
-          flatFieldFilters[[5]][[length(gFiles) + 1]] <- x
+          yFiles[[4]][[length(yFiles) + 1]] <- x
+        } else if (filter == "z''" || filter == "zp") {
+          zFiles[[5]][[length(zFiles) + 1]] <- x
         } else {
           print("NO FILTER: file should have a filter")
           stopifnot(FALSE)
         }
       }
-      done <- TRUE
-      for (f in filters) {
-        if (flatCounter[[get_filter_index(f)]] < 3)
-          done <- FALSE
-      }
-      if (done)
-        break
     } else if (s == type) {
       counter <- counter + 1
       print(paste('Found', counter, 'new files of type', s))
       fileList[[length(fileList) + 1]] <- x
-    }
-    
-    if (type == 'Flat Field') {
-      done <- TRUE
-      for (f in filters) {
-        if (flatCounter[[get_filter_index(f)]] < 3)
-          done <- FALSE
-      }
-      if (done)
-        break
     }
     if (counter > 10)
       break
@@ -139,6 +122,55 @@ get_files_of_type <- function(p.dir, type, filters) {
   }
 }
 
+# Look for dark files of given types in the given directory
+get_dark_files <- function(p.dir, expTimes) {
+  print(paste('looking for darks in:', p.dir))
+  print(paste('of exposure times:', expTimes))
+  if (!file.exists(p.dir)) {
+    print(paste(p.dir, "doesn't exists"))
+    return(list())
+  }
+  new_files <-
+    list.files(
+      path = p.dir,
+      pattern = "*.fits",
+      full.names = T,
+      recursive = TRUE
+    )
+  counter <- 0
+  fileCounter <- 0
+  fileList <-
+    array(list(), dim = c(1, length(expTimes)))
+  count <- length(new_files)
+  print(paste('Found', count, 'more files'))
+  
+  for (x in new_files) {
+    fileCounter <- fileCounter + 1
+    print(paste('Looking at', fileCounter, 'of', count, 'files'))
+    
+    zz <- file(description = x, open = "rb")
+    header <- readFITSheader(zz)
+    hdr <- parseHdr(header)
+    s <- hdr[which(hdr == "IMAGETYP") + 1]
+    exp <- hdr[which(hdr == "EXPTIME") + 1]
+    
+    # sort by filter if flat field
+    if (s == 'Dark Frame' && exp %in% expTimes) {
+      l <- length(fileList[[which(expTimes == exp)]])
+      fileList[[which(expTimes == exp)]] <-
+        fileList[[which(expTimes == exp)]][[l + 1]] <- x
+      counter <- counter + 1
+      print(paste('Found', counter, 'new files of type', s))
+    }
+  }
+  
+  print(paste('Found in total', length(fileList), 'more Dark Frame files'))
+  return(fileList)
+}
+
+
+# get the associated index given a specific filter
+# this order of filters is used everywhere
 get_filter_index <- function(filter) {
   if (filter == "g''" || filter == "gp")
     return(1)
@@ -148,7 +180,7 @@ get_filter_index <- function(filter) {
     return(3)
   if (filter == "Y''" || filter == "Yp")
     return(4)
-  if (filter == "Z''" || filter == "Zp")
+  if (filter == "z''" || filter == "zp")
     return(5)
   return(-1)
 }

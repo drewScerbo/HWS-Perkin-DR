@@ -43,7 +43,7 @@ sort_files <- function(basenames, original) {
 get_files_of_type <- function(p.dir, type, filters) {
   print(paste('looking for', type, 'in:', p.dir))
   if (type == 'Flat Field')
-    print(paste('Filters:', filters))
+    print(paste('Filters needed:', filters))
   if (!file.exists(p.dir)) {
     print(paste(p.dir, "doesn't exists"))
     return(list())
@@ -89,17 +89,17 @@ get_files_of_type <- function(p.dir, type, filters) {
           flatCounter[[get_filter_index(filter)]] + 1
         counter <- counter + 1
         print(paste('Found', counter, 'new flat files of filter', filter))
-        filter <- Y$hdr[which(Y$hdr == "FILTER") + 1]
         if (filter == "g''" || filter == "gp") {
-          gfiles[[length(gFiles) + 1]] <- x
+          gFiles[[length(gFiles) + 1]] <- x
+          print(paste(filter,' == ',"g''"))
         } else if (filter == "i''" || filter == "ip") {
-          iFiles[[2]][[length(iFiles) + 1]] <- x
+          iFiles[[length(iFiles) + 1]] <- x
         } else if (filter == "r''" || filter == "rp") {
-          rFiles[[length(gFiles) + 1]] <- x
+          rFiles[[length(rFiles) + 1]] <- x
         } else if (filter == "Y''" || filter == "Yp") {
-          yFiles[[4]][[length(yFiles) + 1]] <- x
+          yFiles[[length(yFiles) + 1]] <- x
         } else if (filter == "z''" || filter == "zp") {
-          zFiles[[5]][[length(zFiles) + 1]] <- x
+          zFiles[[length(zFiles) + 1]] <- x
         } else {
           print("NO FILTER: file should have a filter")
           stopifnot(FALSE)
@@ -110,8 +110,7 @@ get_files_of_type <- function(p.dir, type, filters) {
       print(paste('Found', counter, 'new files of type', s))
       fileList[[length(fileList) + 1]] <- x
     }
-    if (counter > 10)
-      break
+    close(zz)
   }
   
   if (type == 'Flat Field') {
@@ -125,7 +124,6 @@ get_files_of_type <- function(p.dir, type, filters) {
 # Look for dark files of given types in the given directory
 get_dark_files <- function(p.dir, expTimes) {
   print(paste('looking for darks in:', p.dir))
-  print(paste('of exposure times:', expTimes))
   if (!file.exists(p.dir)) {
     print(paste(p.dir, "doesn't exists"))
     return(list())
@@ -139,14 +137,12 @@ get_dark_files <- function(p.dir, expTimes) {
     )
   counter <- 0
   fileCounter <- 0
-  fileList <-
-    array(list(), dim = c(1, length(expTimes)))
+  fileList <- list()
   count <- length(new_files)
-  print(paste('Found', count, 'more files'))
+  print(paste('Looking at', count, 'more files'))
   
   for (x in new_files) {
     fileCounter <- fileCounter + 1
-    print(paste('Looking at', fileCounter, 'of', count, 'files'))
     
     zz <- file(description = x, open = "rb")
     header <- readFITSheader(zz)
@@ -156,15 +152,14 @@ get_dark_files <- function(p.dir, expTimes) {
     
     # sort by filter if flat field
     if (s == 'Dark Frame' && exp %in% expTimes) {
-      l <- length(fileList[[which(expTimes == exp)]])
-      fileList[[which(expTimes == exp)]] <-
-        fileList[[which(expTimes == exp)]][[l + 1]] <- x
+      fileList[[length(fileList) + 1]] <- x
       counter <- counter + 1
       print(paste('Found', counter, 'new files of type', s))
     }
+    close(zz)
   }
   
-  print(paste('Found in total', length(fileList), 'more Dark Frame files'))
+  print(paste('Found in total', counter, 'more Dark Frame files'))
   return(fileList)
 }
 
@@ -205,6 +200,7 @@ flatFunction <- function(f) {
   # Get average count of all pixels in an image
   masterFlat <- array(0, dim = c(xNumber, yNumber))
   flatCounter <- 0
+  print(paste("Averaging master flat of",length(f),"files"))
   for (file in f) {
     Y <- readFITS(file)
     img <- Y$imDat
@@ -221,8 +217,7 @@ flatFunction <- function(f) {
     return(masterFlat / flatCounter)
 }
 
-
-writeCalScience <- function (science, x, Y) {
+writeCalScience <- function (science, x, Y,c) {
   fName <- paste("mod_", basename(x), sep = '')
   dirName <- file.path(dirname(x), 'modified images')
   dir.create(dirName, showWarnings = FALSE)
@@ -234,7 +229,8 @@ writeCalScience <- function (science, x, Y) {
     file = f,
     axDat = Y$axDat,
     header = Y$header,
-    bscale = strtoi(bscale)
+    bscale = strtoi(bscale),
+    c2 = c
   )
   return(fName)
 }

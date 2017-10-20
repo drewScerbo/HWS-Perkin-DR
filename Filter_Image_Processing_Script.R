@@ -8,7 +8,7 @@ script.dir <- '/Users/drewScerbo/Documents/AstronomyF17/HWS-Perkin-DR'
 
 source(file.path(script.dir,'Image_Processing_Functions.R'))
 ## get all the .fits files
-p <- "/Users/drewScerbo/Desktop/ObservingImages/20170414"
+p <- "/Users/drewScerbo/Desktop/20170911"
 # p <-
 #   "C:/Users/drews/OneDrive/Documents/Hobart 16-17/Astronomy/images"
 files <-
@@ -25,6 +25,7 @@ xNumber <- 3352
 yNumber <- 2532
 
 # set up lists to hold file names
+biasFrameFiles <- list()
 darkFrameFiles <- list()
 lightFiles <- list()
 gFlatFiles <- list()
@@ -39,7 +40,6 @@ neededExposureTimes <- list()
 masterBias <-
   array(0, dim = c(xNumber, yNumber))
 counter <- 0
-biasCounter <- 0
 modCounter <- 0
 count <- length(files)
 flatFilters <- c()
@@ -51,19 +51,21 @@ for (x in files) {
     print(paste("Skipped",modCounter,"calibrated images."))
     next
   }
-  Y <- readFITS(x)
-  s <- Y$hdr[which(Y$hdr == "IMAGETYP") + 1]
+  zz <- file(description = x,open = "rb")
+  header <- readFITSheader(zz)
+  hdr <- parseHdr(header)
+  s <- hdr[which(hdr == "IMAGETYP") + 1]
   
   if (s == "Bias Frame") {
     # average all biases into a master bias field
-    masterBias <- masterBias + Y$imDat
-    biasCounter <- biasCounter + 1
+    # masterBias <- masterBias + imDat
+    biasFrameFiles[[length(biasFrameFiles) + 1]] <- x
     
   } else if (s == "Dark Frame") {
     darkFrameFiles[[length(darkFrameFiles) + 1]] <- x
     
   } else if (s == "Flat Field") {
-    filter <- Y$hdr[which(Y$hdr == "FILTER") + 1]
+    filter <- hdr[which(hdr == "FILTER") + 1]
     if (!is.element(filter,flatFilters)) flatFilters <- c(flatFilters,filter)
     if (filter == "g''" || filter == "gp") {
       gFlatFiles[[length(gFlatFiles) + 1]] <- x
@@ -73,15 +75,15 @@ for (x in files) {
       rFlatFiles[[length(rFlatFiles) + 1]] <- x
     } else if (filter == "Y''" || filter == "Yp") {
       yFlatFiles[[length(yFlatFiles) + 1]] <- x
-    } else if (filter == "Z''" || filter == "Zp") {
+    } else if (filter == "z''" || filter == "zp") {
       zFlatFiles[[length(zFlatFiles) + 1]] <- x
     } else {
       print("NO FILTER: file should have a filter")
       stopifnot(FALSE)
     }
   } else if (s == "Light Frame") {
-    expTime <- Y$hdr[which(Y$hdr == "EXPTIME") + 1]
-    filter <- Y$hdr[which(Y$hdr == "FILTER") + 1]
+    expTime <- hdr[which(hdr == "EXPTIME") + 1]
+    filter <- hdr[which(hdr == "FILTER") + 1]
     if (!is.element(expTime, neededExposureTimes)) {
       neededExposureTimes[[length(neededExposureTimes) + 1]] <-
         expTime
@@ -89,6 +91,7 @@ for (x in files) {
     if (!is.element(filter,lightFilters)) lightFilters <- c(lightFilters,filter)
     lightFiles[[length(lightFiles) + 1]] <- x
   }
+  close(zz)
   print(paste("Read in", counter, "of", count, "fits files:", s))
 }
 
@@ -102,8 +105,8 @@ other_directories[[which(other_directories == original)]] <- NULL
 # near by directories in order by closest to original
 other_directories <- sort_files(other_directories,original) 
 
-if (biasCounter <= 2) {
-  
+if (length(biasFrameFiles) <= 2) {
+  biasCounter <- 0
   for (dir in other_directories[[1]]){
     p2 <- file.path(dirname(p),dir)
     biasFiles <- get_files_of_type(p2,'Bias Frame',NULL)
@@ -111,23 +114,51 @@ if (biasCounter <= 2) {
       Y <- readFITS(x)
       masterBias <- masterBias + Y$imDat 
       biasCounter <- biasCounter + 1
+      close(x)
     }
     if (biasCounter > 2) break
   }
 }
 
 # average the master bias
-if (biasCounter > 0) {
-  masterBias <- masterBias / biasCounter
-  remove(biasCounter)
+for (x in biasFrameFiles){
+  Y <- readFITS(x)
+  masterBias <- masterBias + Y$imDat
+}
+if (length(biasFrameFiles) > 0) {
+  masterBias <- masterBias / length(biasFrameFiles)
+  remove(biasFrameFiles)
 } 
 # Finished masterBias
 
-if (length(darkFrameFiles) <= 2) {
+# check if any light frame exposure times don't have a dark
+# with the same exposure time
+exposureTimes <- c() # list of exposure times of the darks
+for (x in darkFrameFiles) {
+  zz <- file(description = x,open = "rb")
+  header <- readFITSheader(zz)
+  hdr <- parseHdr(header)
+  s <- hdr[which(hdr == "EXPTIME") + 1]
+  if (!is.element(s, exposureTimes)) {
+    exposureTimes <- c(exposureTimes, s)
+  }
+  i <- which(neededExposureTimes == s)
+  if (length(i) > 0)
+    neededExposureTimes[[i]] <- NULL
+}
+
+if (length(neededExposureTimes)) {
   for (dir in other_directories[[1]]){
     p2 <- file.path(dirname(p),dir)
-    darkFrameFiles <- append(darkFrameFiles,get_files_of_type(p2,'Dark Frame',NULL))
-    if (length(darkFrameFiles) > 2) break
+    darkFrameFiles <- append(darkFrameFiles,get_dark_files(p2,neededExposureTimes))
+    for (f in darkFrameFiles) {
+      if (length(f) > 3){
+        neededExposureTimes <- neededExposureTimes[[!neededExposureTimes %in% c(f)]]
+      } else
+        done <- FALSE
+    }
+    if (done)
+      break
   }
 }
 
@@ -138,36 +169,27 @@ if (length(flatFilters) < length(lightFilters)) {
     for (f in lightFilters){
       if (!is.element(f,flatFilters)) {neededFilters <- c(neededFilters,f)}
     }
+    print(paste('flats:',flatFilters))
+    print(paste('lights:',lightFilters))
+    print(paste('needed:',neededFilters))
+    if (is.null(neededFilters)) break
     p2 <- file.path(dirname(p),dir)
     flatFiles <- get_files_of_type(p2,'Flat Field',neededFilters)
-    gFlatFiles <- append(gFlatFiles,flatFiles[1])
-    iFlatFiles <- append(gFlatFiles,flatFiles[2])
-    rFlatFiles <- append(gFlatFiles,flatFiles[3])
-    yFlatFiles <- append(gFlatFiles,flatFiles[4])
-    zFlatFiles <- append(gFlatFiles,flatFiles[5])
+    print(paste('is found:',length(flatFiles[[2]])))
+    gFlatFiles <- append(gFlatFiles,flatFiles[[1]])
+    iFlatFiles <- append(iFlatFiles,flatFiles[[2]])
+    rFlatFiles <- append(rFlatFiles,flatFiles[[3]])
+    yFlatFiles <- append(yFlatFiles,flatFiles[[4]])
+    zFlatFiles <- append(zFlatFiles,flatFiles[[5]])
     flatFilters <- c()
-    if (length(gFlatFiles) <= 2) flatFilters <- c(flatFilters,"g''","gp")
-    if (length(iFlatFiles) <= 2) flatFilters <- c(flatFilters,"i''","ip")
-    if (length(rFlatFiles) <= 2) flatFilters <- c(flatFilters,"r''","rp")
-    if (length(yFlatFiles) <= 2) flatFilters <- c(flatFilters,"Y''","Yp")
-    if (length(zFlatFiles) <= 2) flatFilters <- c(flatFilters,"Z''","Zp")
-    if (length(neededFilters) == 0) break
+    if (length(gFlatFiles) > 2) flatFilters <- c(flatFilters,"g''","gp")
+    if (length(iFlatFiles) > 2) flatFilters <- c(flatFilters,"i''","ip")
+    if (length(rFlatFiles) > 2) flatFilters <- c(flatFilters,"r''","rp")
+    if (length(yFlatFiles) > 2) flatFilters <- c(flatFilters,"Y''","Yp")
+    if (length(zFlatFiles) > 2) flatFilters <- c(flatFilters,"z''","zp")
   }
 }
 
-# check if any light frame exposure times don't have a dark
-# with the same exposure time
-exposureTimes <- c() # list of exposure times of the darks
-for (x in darkFrameFiles) {
-  Y <- readFITS(x)
-  s <- Y$hdr[which(Y$hdr == "EXPTIME") + 1]
-  if (!is.element(s, exposureTimes)) {
-    exposureTimes <- c(exposureTimes, s)
-  }
-  i <- which(neededExposureTimes == s)
-  if (length(i) > 0)
-    neededExposureTimes[[i]] <- NULL
-}
 
 for (exp in neededExposureTimes) {
   # for each exposure time without a dark ask for a filepath with more
@@ -281,8 +303,8 @@ for (x in lightFiles) {
   } else if ((filter == "Y''" ||
               filter == "Yp") && exists("masterYFlat")) {
     masterFlat <- masterYFlat
-  } else if ((filter == "Z''" ||
-              filter == "Zp") && exists("masterZFlat")) {
+  } else if ((filter == "z''" ||
+              filter == "zp") && exists("masterZFlat")) {
     masterFlat <- masterZFlat
   } else {
     print(paste("there is no", filter, "filter"))

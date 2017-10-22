@@ -3,7 +3,6 @@
 
 # install.packages("FITSio")
 library(FITSio)
-# script.dir <- dirname(sys.frame(1)$ofile)
 script.dir <- '/Users/drewScerbo/Documents/AstronomyF17/HWS-Perkin-DR'
 
 source(file.path(script.dir,'Image_Processing_Functions.R'))
@@ -265,6 +264,7 @@ if (length(exposureTimeDarkFiles) > 0) {
   for (i in 1:length(exposureTimeDarkFiles)) {
     masterDarks[[length(masterDarks) + 1]] <-
       darkCounter(exposureTimeDarkFiles[[i]])
+    print(paste("Averaging",i,"of",length(exposureTimeDarkFiles),"master darks"))
   }
 }
 # Finished masterDarks
@@ -272,15 +272,15 @@ if (length(exposureTimeDarkFiles) > 0) {
 
 # Create master flat for each filter
 if (length(gFlatFiles) > 0)
-  masterGFlat <- flatFunction(gFlatFiles)
+  masterGFlat <- flatFunction(gFlatFiles,'g')
 if (length(rFlatFiles) > 0)
-  masterRFlat <- flatFunction(rFlatFiles)
+  masterRFlat <- flatFunction(rFlatFiles,'r')
 if (length(iFlatFiles) > 0)
-  masterIFlat <- flatFunction(iFlatFiles)
+  masterIFlat <- flatFunction(iFlatFiles,'i')
 if (length(yFlatFiles) > 0)
-  masterYFlat <- flatFunction(yFlatFiles)
+  masterYFlat <- flatFunction(yFlatFiles,'Y')
 if (length(zFlatFiles) > 0)
-  masterZFlat <- flatFunction(zFlatFiles)
+  masterZFlat <- flatFunction(zFlatFiles,'z')
 remove(gFlatFiles, rFlatFiles, iFlatFiles, yFlatFiles, zFlatFiles)
 
 # apply the calibration images to each light image and
@@ -328,13 +328,15 @@ for (x in lightFiles) {
     comment <- ""
   } else {
     comment <- "NONE"
-    masterFlat <- array(0, dim = c(xNumber, yNumber))
+    masterFlat <- array(1, dim = c(xNumber, yNumber))
   }
   
   # times = [needed exposure time, dark exposure time]
   # dark = closest dark frame
   expTime <- paste(times[[2]], ".", sep = "")
-  dark <- masterDarks[[which(exposureTimes == expTime)]]
+  if(grepl("NoAutoDark",x)){
+    dark <- 0
+  } else dark <- masterDarks[[which(exposureTimes == expTime)]]
   calScience <-
     Y$imDat - masterBias - times[[1]] * dark / times[[2]]
   calScience <- calScience / masterFlat

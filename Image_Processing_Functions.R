@@ -60,7 +60,7 @@ get_files_of_type <- function(p.dir, type, filters) {
   fileCounter <- 0
   count <- length(new_files)
   fileList <- list()
-  print(paste('Found', count, 'more files'))
+  print(paste('Looking in', count, 'more files'))
   
   if (type == 'Flat Field') {
     flatCounter <- list(0, 0, 0, 0, 0)
@@ -91,7 +91,6 @@ get_files_of_type <- function(p.dir, type, filters) {
         print(paste('Found', counter, 'new flat files of filter', filter))
         if (filter == "g''" || filter == "gp") {
           gFiles[[length(gFiles) + 1]] <- x
-          print(paste(filter,' == ',"g''"))
         } else if (filter == "i''" || filter == "ip") {
           iFiles[[length(iFiles) + 1]] <- x
         } else if (filter == "r''" || filter == "rp") {
@@ -136,16 +135,16 @@ get_dark_files <- function(p.dir, expTimes) {
       recursive = TRUE
     )
   counter <- 0
-  fileCounter <- 0
   fileList <- list()
   count <- length(new_files)
   print(paste('Looking at', count, 'more files'))
   
   for (x in new_files) {
-    fileCounter <- fileCounter + 1
-    
+
     zz <- file(description = x, open = "rb")
     header <- readFITSheader(zz)
+    
+    close(zz)
     hdr <- parseHdr(header)
     s <- hdr[which(hdr == "IMAGETYP") + 1]
     exp <- hdr[which(hdr == "EXPTIME") + 1]
@@ -156,9 +155,7 @@ get_dark_files <- function(p.dir, expTimes) {
       counter <- counter + 1
       print(paste('Found', counter, 'new files of type', s))
     }
-    close(zz)
   }
-  
   print(paste('Found in total', counter, 'more Dark Frame files'))
   return(fileList)
 }
@@ -196,11 +193,11 @@ darkCounter <- function(files) {
 
 
 # Average the value of each flat field and sort by filters
-flatFunction <- function(f) {
+flatFunction <- function(f,filter) {
   # Get average count of all pixels in an image
   masterFlat <- array(0, dim = c(xNumber, yNumber))
   flatCounter <- 0
-  print(paste("Averaging master flat of",length(f),"files"))
+  print(paste("Averaging master",filter,"flat of",length(f),"files"))
   for (file in f) {
     Y <- readFITS(file)
     img <- Y$imDat

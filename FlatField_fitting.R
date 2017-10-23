@@ -56,7 +56,6 @@ histOfFlats[[1]] <- hist(
   breaks = 200,
   freq = TRUE
 )
-print(paste("added",1))
 
 for (i in 2:length(masterFlats)) {
   histOfFlats[[i]] <- hist(
@@ -104,13 +103,11 @@ legend("topright",
        lwd = 5)
 
 percentageOut <- list()
-# p <-
-#   "C:/Users/drews/OneDrive/Documents/Hobart 16-17/Astronomy/"
 
-p <- "/Users/drewScerbo/Desktop/20170911/"
+script.dir <- dirname(sys.frame(1)$ofile)
 
-file.create(file.path(p, "FlatFieldSummary.txt"))
-fileSummary <- file.path(p, "FlatFieldSummary.txt", sep = "")
+file.create(file.path(script.dir, "FlatFieldSummary.txt"))
+fileSummary <- file.path(script.dir, "FlatFieldSummary.txt", sep = "")
 titles <- c("Min:", "1st Q:", "Med:", "Mean:", "3rd Q:", "Max:")
 lines <- "FlatFlield Summary:\n"
 
@@ -211,7 +208,7 @@ opt <-
         method = "CG",
         control = list(reltol = 1e-11))
 # pdf(
-#   paste(p,
+#   paste(script.dir,
 #         scienceFrameFilters[[1]],
 #         ".pdf",
 #         sep = ""),
@@ -230,7 +227,7 @@ opt <-
         method = "CG",
         control = list(reltol = 1e-11))
 # pdf(
-#   paste(p,
+#   paste(script.dir,
 #         scienceFrameFilters[[2]],
 #         ".pdf",
 #         sep = ""),
@@ -250,7 +247,7 @@ opt <-
         method = "CG",
         control = list(reltol = 1e-11))
 # pdf(
-#   paste(p,
+#   paste(script.dir,
 #         scienceFrameFilters[[3]],
 #         ".pdf",
 #         sep = ""),

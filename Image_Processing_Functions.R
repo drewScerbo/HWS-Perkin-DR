@@ -1,4 +1,6 @@
-## functions used in Filter_Imgae_Processing_Script.R
+# functions used in Filter_Imgae_Processing_Script.R
+# Author Drew Scerbo
+# October 22, 2017
 
 # function to compare two date directories
 # return > 0 if dir1 came first
@@ -153,7 +155,7 @@ get_dark_files <- function(p.dir, expTimes) {
     if (s == 'Dark Frame' && exp %in% expTimes) {
       fileList[[length(fileList) + 1]] <- x
       counter <- counter + 1
-      print(paste('Found', counter, 'new files of type', s))
+      print(paste('Found', counter, 'new dark fames of exposure time', exp))
     }
   }
   print(paste('Found in total', counter, 'more Dark Frame files'))
@@ -214,6 +216,7 @@ flatFunction <- function(f,filter) {
     return(masterFlat / flatCounter)
 }
 
+# Writes the calibrated science frame in the given directory
 writeCalScience <- function (science, x, Y,c) {
   fName <- paste("mod_", basename(x), sep = '')
   dirName <- file.path(dirname(x), 'modified images')

@@ -1,18 +1,18 @@
 # This program will read in Bias, Flat, and Dark Files and make a master Flat for each filter; G,I,R,Z, and Y.
-# Andrew Scerbo
+# Author Andrew Scerbo
+# October 22, 2017
 
 # install.packages("FITSio")
 library(FITSio)
-script.dir <- '/Users/drewScerbo/Documents/AstronomyF17/HWS-Perkin-DR'
-
+script.dir <- dirname(sys.frame(1)$ofile)
+print(paste("Calibrating images in",script.dir))
+interactive <- readline(prompt = "Would you like an interactive run? [y/n]")
+interactive <- ifelse(interactive == 'y',TRUE,FALSE)
 source(file.path(script.dir,'Image_Processing_Functions.R'))
 ## get all the .fits files
-p <- "/Users/drewScerbo/Desktop/ObservingImages/20170414"
-# p <-
-#   "C:/Users/drews/OneDrive/Documents/Hobart 16-17/Astronomy/images"
 files <-
   list.files(
-    path = p,
+    path = script.dir,
     pattern = "*.fits",
     full.names = T,
     recursive = TRUE
@@ -50,6 +50,7 @@ for (x in files) {
     print(paste("Skipped",modCounter,"already calibrated images."))
     next
   }
+  if (grepl('calibration masters',x)) next
   zz <- file(description = x,open = "rb")
   header <- readFITSheader(zz)
   hdr <- parseHdr(header)
@@ -94,8 +95,8 @@ for (x in files) {
 }
 
 ## search in near folders for missing data
-original <- basename(p)
-other_directories = list.dirs(dirname(p),recursive = FALSE)
+original <- basename(script.dir)
+other_directories = list.dirs(dirname(script.dir),recursive = FALSE)
 other_directories = lapply(other_directories,basename)
 other_directories[[which(other_directories == original)]] <- NULL
 
@@ -105,7 +106,7 @@ other_directories <- sort_files(other_directories,original)
 if (length(biasFrameFiles) <= 2) {
   biasCounter <- 0
   for (dir in other_directories[[1]]){
-    p2 <- file.path(dirname(p),dir)
+    p2 <- file.path(dirname(script.dir),dir)
     biasFiles <- get_files_of_type(p2,'Bias Frame',NULL)
     for (x in biasFiles){
       Y <- readFITS(x)
@@ -152,7 +153,7 @@ for (x in darkFrameFiles) {
 # look for dark frames in nearby directories
 if (length(neededExposureTimes)) {
   for (dir in other_directories[[1]]){
-    p2 <- file.path(dirname(p),dir)
+    p2 <- file.path(dirname(script.dir),dir)
     darkFrameFiles <- append(darkFrameFiles,get_dark_files(p2,neededExposureTimes))
     
     exposureTimes <- c() # list of exposure times of the darks
@@ -182,7 +183,7 @@ if (length(flatFilters) < length(lightFilters)) {
       if (!is.element(f,flatFilters)) {neededFilters <- c(neededFilters,f)}
     }
     if (is.null(neededFilters)) break
-    p2 <- file.path(dirname(p),dir)
+    p2 <- file.path(dirname(script.dir),dir)
     flatFiles <- get_files_of_type(p2,'Flat Field',neededFilters)
     gFlatFiles <- append(gFlatFiles,flatFiles[[1]])
     iFlatFiles <- append(iFlatFiles,flatFiles[[2]])
@@ -201,39 +202,41 @@ if (length(flatFilters) < length(lightFilters)) {
 
 # for each exposure time without a dark ask for a filepath with more
 # dark files of the same exposure time
-for (exp in neededExposureTimes) {
-  question <- "Enter a file path for darks with exposure time '"
-  x <-
-    readline(prompt = paste(question, exp, "':", sep = ''))
-  if (!file.exists(x)) next
-  files <-
-    list.files(
-      path = p,
-      pattern = "*.fits",
-      full.names = T,
-      recursive = TRUE
-    )
+if (interactive){
+  for (exp in neededExposureTimes) {
+    question <- "Enter a file path for darks with exposure time '"
+    x <-
+      readline(prompt = paste(question, exp, "':", sep = ''))
+    if (!file.exists(x)) next
+    files <-
+      list.files(
+        path = script.dir,
+        pattern = "*.fits",
+        full.names = T,
+        recursive = TRUE
+      )
   
-  # add the new darks with the right exposure time
-  addedFrames <- FALSE
-  counter <- 0
-  for (x in files) {
-    
-    zz <- file(description = x, open = "rb")
-    header <- readFITSheader(zz)
-    hdr <- parseHdr(header)
-    exp <- hdr[which(hdr == "EXPTIME") + 1]
-    s <- hdr[which(hdr == "IMAGETYP") + 1]
-    if (s == 'Dark Frame' && expTime == exp) {
-      addedFrames <- TRUE
-      darkFrameFiles[[length(darkFrameFiles) + 1]] <- x
-      counter <- counter + 1
+    # add the new darks with the right exposure time
+    addedFrames <- FALSE
+    counter <- 0
+    for (x in files) {
+  
+      zz <- file(description = x, open = "rb")
+      header <- readFITSheader(zz)
+      hdr <- parseHdr(header)
+      exp <- hdr[which(hdr == "EXPTIME") + 1]
+      s <- hdr[which(hdr == "IMAGETYP") + 1]
+      if (s == 'Dark Frame' && expTime == exp) {
+        addedFrames <- TRUE
+        darkFrameFiles[[length(darkFrameFiles) + 1]] <- x
+        counter <- counter + 1
+      }
+      close(zz)
     }
-    close(zz)
-  }
-  print(paste('added', counter, 'dark frames of exposure time', exp))
-  if (addedFrames) {
-    neededExposureTimes[[which(neededExposureTimes == exp)]] <- NULL
+    print(paste('added', counter, 'dark frames of exposure time', exp))
+    if (addedFrames) {
+      neededExposureTimes[[which(neededExposureTimes == exp)]] <- NULL
+    }
   }
 }
 
@@ -256,7 +259,6 @@ for (x in darkFrameFiles) {
   exposureTimeDarkFiles[[i]][[length(exposureTimeDarkFiles[[i]]) + 1]] <-
     x
   close(zz)
-  print(paste("Read in", counter, "dark frames of", count))
 }
 
 masterDarks <- list()
@@ -285,7 +287,7 @@ remove(gFlatFiles, rFlatFiles, iFlatFiles, yFlatFiles, zFlatFiles)
 
 # apply the calibration images to each light image and
 # write out the modified image into subfolder 'modified images'
-dir.create(file.path(p, 'modified images'))
+dir.create(file.path(script.dir, 'modified images'))
 counter <- 0
 count <- length(lightFiles)
 for (x in lightFiles) {
@@ -344,14 +346,38 @@ for (x in lightFiles) {
   print(paste("Wrote", counter, "of", count, "light files as",fName))
 }
 # write master images
-# writeFITSim(masterBias,file = file.path(p,"master_bias.fits"))
+script.dir <- file.path(script.dir, 'calibration masters')
+dir.create(script.dir)
+writeFITSim(masterBias, 
+            file = file.path(script.dir, "master_bias.fits"))
+if (exists('masterGFlat'))
+  writeFITSim(masterGFlat,
+              file = file.path(script.dir, "master_GFlat.fits"))
+if (exists('masterIFlat'))
+  writeFITSim(masterIFlat,
+              file = file.path(script.dir, "master_IFlat.fits"))
+if (exists('masterRFlat'))
+  writeFITSim(masterRFlat,
+              file = file.path(script.dir, "master_RFlat.fits"))
+if (exists('masterYFlat'))
+  writeFITSim(masterYFlat,
+              file = file.path(script.dir, "master_YFlat.fits"))
+if (exists('masterZFlat'))
+  writeFITSim(masterZFlat,
+              file = file.path(script.dir, "master_ZFlat.fits"))
 
+if (length(masterDarks)){
+  for (i in 1:length(masterDarks)){
+    s <- paste(as.numeric(exposureTimes[[i]]),'_sec_master_dark.fits',sep = "")
+    writeFITSim(masterDarks[[i]],file = file.path(script.dir,s))
+  }
+}
 remove(a,b,count,counter,diff,difference,
        exp,exposureTimes,expTime,filter,i,
        modCounter,s,times,x,y,comment,
-       fName,p,Y,dark,neededExposureTimes,
+       fName,script.dir,Y,dark,neededExposureTimes,
        calScience,exposureTimeDarkFiles,
        neededFilters,lightFiles,zz,lightFilters,
-       p2,original,masterDarks,xNumber,yNumber,
+       p2,original,xNumber,yNumber,
        header,hdr,flatFiles,f,flatFilters,
-       dir,question,darkFrameFiles,files)
+       dir,darkFrameFiles,files)

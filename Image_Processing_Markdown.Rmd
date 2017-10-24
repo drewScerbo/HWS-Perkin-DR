@@ -39,23 +39,7 @@ This sourcing creates all the functions that are to be used in the calibration f
 The first step requires getting and sorting all the files in the directory. The script, after being downloaded into the directory, will get the path to itself (also the path to the wanted directory) and use that to search for all the fits files. The script.dir can only be retrieved when the script is sourced rather than just run. That is why it is commented out.
 
 ```{r include = FALSE}
-script.dir <- 'path'
-
-```
-
-```{r, include = TRUE}
-# script.dir <- dirname(sys.frame(1)$ofile)
-
-files <-
-  list.files(
-    path = script.dir,
-    pattern = "*.fits",
-    full.names = T,
-    recursive = TRUE
-  )
-```
-
-```{r, include = FALSE}
+script.dir <- '/Users/drewScerbo/Desktop/ObservingImages/20170414'
 xNumber <- 3352
 yNumber <- 2532
 
@@ -73,9 +57,84 @@ masterBias <-
   array(0, dim = c(xNumber, yNumber))
 counter <- 0
 modCounter <- 0
-count <- length(files)
 flatFilters <- c()
 lightFilters <- c()
+```
+
+```{r, include = TRUE}
+# script.dir <- dirname(sys.frame(1)$ofile)
+
+files <-
+  list.files(
+    path = script.dir,
+    pattern = "*.fits",
+    full.names = T,
+    recursive = TRUE
+  )
+count <- length(files)
+```
+
+Once the files are retrieved. They need to be sorted. To do that, the header of each file is opened and the type of image (light, bias, dark, or flat) is stored. The actual image does not need to be opened until later. Just opening the header decreases the time needed to open the files, therefore decreasing the total time for sorting. Bias and dark frames are just stored into a list containing their files. Flat fields are sorted further by their filter. For light frames, the filter and exposure time are extracted and added to lists. These lists are used to determine whether more dark frames (same exposure time) or flat fields (same filter) are needed. 
+
+```{r, include = TRUE}
+for (x in files) {
+  counter <- counter + 1
+  if (length(grep('mod_',basename(x))) > 0) {
+    modCounter <- modCounter + 1
+    next
+  }
+  if (grepl('calibration masters',x)) next
+  zz <- file(description = x,open = "rb")
+  header <- readFITSheader(zz)
+  hdr <- parseHdr(header)
+  s <- hdr[which(hdr == "IMAGETYP") + 1]
+  
+  if (s == "Bias Frame") {
+    biasFrameFiles[[length(biasFrameFiles) + 1]] <- x
+    
+  } else if (s == "Dark Frame") {
+    darkFrameFiles[[length(darkFrameFiles) + 1]] <- x
+    
+  } else if (s == "Flat Field") {
+    filter <- hdr[which(hdr == "FILTER") + 1]
+    if (!is.element(filter,flatFilters)) flatFilters <- c(flatFilters,filter)
+    if (filter == "g''" || filter == "gp") {
+      gFlatFiles[[length(gFlatFiles) + 1]] <- x
+    } else if (filter == "i''" || filter == "ip") {
+      iFlatFiles[[length(iFlatFiles) + 1]] <- x
+    } else if (filter == "r''" || filter == "rp") {
+      rFlatFiles[[length(rFlatFiles) + 1]] <- x
+    } else if (filter == "Y''" || filter == "Yp") {
+      yFlatFiles[[length(yFlatFiles) + 1]] <- x
+    } else if (filter == "z''" || filter == "zp") {
+      zFlatFiles[[length(zFlatFiles) + 1]] <- x
+    } else {
+      print("NO FILTER: file should have a filter")
+      stopifnot(FALSE)
+    }
+  } else if (s == "Light Frame") {
+    expTime <- hdr[which(hdr == "EXPTIME") + 1]
+    filter <- hdr[which(hdr == "FILTER") + 1]
+    if (!is.element(expTime, neededExposureTimes)) {
+      neededExposureTimes[[length(neededExposureTimes) + 1]] <-
+        expTime
+    }
+    if (!is.element(filter,lightFilters)) lightFilters <- c(lightFilters,filter)
+    lightFiles[[length(lightFiles) + 1]] <- x
+  }
+  close(zz)
+}
+```
+
+If the file in question, above as 'x', is either, a previously modified image or in a sub folder 'calibration masters', meaning it was also previously written by this script, then it is skipped. 
+
+Once the files are sorted, the other directories that are at the same level are found and sorted. This process uses two functions from the other script; compare_dates and sort_files. 
+```{r, include=TRUE}
+original <- basename(script.dir)
+other_directories = list.dirs(dirname(script.dir),recursive = FALSE)
+other_directories = lapply(other_directories,basename)
+other_directories[[which(other_directories == original)]] <- NULL
+other_directories <- sort_files(other_directories,original) 
 ```
 
 The function below uses the built in Date class to return the difference, in days, between two directories. The directories given are in the format of 'YYYYMMDD' so there is some modifying needed. This is used to order the other directories chronologically closest to the directory in question. 
@@ -96,7 +155,9 @@ compare_dates <- function(dir1, dir2) {
   return(as.numeric(d1 - d2))
 }
 ```
+
 The next function, below, uses the compare_dates function to first, compute the difference of days from the original, and second, order the directories by that difference. It returns a data frame, in order, with the basenames of the directories and their corresponding difference. 
+
 ```{r, include=TRUE}
 sort_files <- function(basenames, original) {
   differences <- c()
@@ -120,7 +181,6 @@ Once the directories are ordered, each are in
 ``` {r, include = TRUE}
 get_files_of_type <- function(p.dir, type, filters) {
   if (!file.exists(p.dir)) {
-    print(paste(p.dir, "doesn't exists"))
     return(list())
   }
   new_files <-
@@ -145,8 +205,6 @@ get_files_of_type <- function(p.dir, type, filters) {
       if (filter %in% filters) {
         flatCounter[[get_filter_index(filter)]] <-
           flatCounter[[get_filter_index(filter)]] + 1
-        counter <- counter + 1
-        print(paste('Found', counter, 'new flat files of filter', filter))
         if (filter == "g''" || filter == "gp") {
           gFiles[[length(gFiles) + 1]] <- x
         } else if (filter == "i''" || filter == "ip") {
@@ -163,8 +221,6 @@ get_files_of_type <- function(p.dir, type, filters) {
         }
       }
     } else if (s == type) {
-      counter <- counter + 1
-      print(paste('Found', counter, 'new files of type', s))
       fileList[[length(fileList) + 1]] <- x
     }
     close(zz)

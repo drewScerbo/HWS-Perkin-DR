@@ -154,7 +154,63 @@ files &lt;-
     pattern = &quot;*.fits&quot;,
     full.names = T,
     recursive = TRUE
-  )</code></pre>
+  )
+count &lt;- length(files)</code></pre>
+<p>Once the files are retrieved. They need to be sorted. To do that, the header of each file is opened and the type of image (light, bias, dark, or flat) is stored. The actual image does not need to be opened until later. Just opening the header decreases the time needed to open the files, therefore decreasing the total time for sorting. Bias and dark frames are just stored into a list containing their files. Flat fields are sorted further by their filter. For light frames, the filter and exposure time are extracted and added to lists. These lists are used to determine whether more dark frames (same exposure time) or flat fields (same filter) are needed.</p>
+<pre class="r"><code>for (x in files) {
+  counter &lt;- counter + 1
+  if (length(grep('mod_',basename(x))) &gt; 0) {
+    modCounter &lt;- modCounter + 1
+    next
+  }
+  if (grepl('calibration masters',x)) next
+  zz &lt;- file(description = x,open = &quot;rb&quot;)
+  header &lt;- readFITSheader(zz)
+  hdr &lt;- parseHdr(header)
+  s &lt;- hdr[which(hdr == &quot;IMAGETYP&quot;) + 1]
+  
+  if (s == &quot;Bias Frame&quot;) {
+    biasFrameFiles[[length(biasFrameFiles) + 1]] &lt;- x
+    
+  } else if (s == &quot;Dark Frame&quot;) {
+    darkFrameFiles[[length(darkFrameFiles) + 1]] &lt;- x
+    
+  } else if (s == &quot;Flat Field&quot;) {
+    filter &lt;- hdr[which(hdr == &quot;FILTER&quot;) + 1]
+    if (!is.element(filter,flatFilters)) flatFilters &lt;- c(flatFilters,filter)
+    if (filter == &quot;g''&quot; || filter == &quot;gp&quot;) {
+      gFlatFiles[[length(gFlatFiles) + 1]] &lt;- x
+    } else if (filter == &quot;i''&quot; || filter == &quot;ip&quot;) {
+      iFlatFiles[[length(iFlatFiles) + 1]] &lt;- x
+    } else if (filter == &quot;r''&quot; || filter == &quot;rp&quot;) {
+      rFlatFiles[[length(rFlatFiles) + 1]] &lt;- x
+    } else if (filter == &quot;Y''&quot; || filter == &quot;Yp&quot;) {
+      yFlatFiles[[length(yFlatFiles) + 1]] &lt;- x
+    } else if (filter == &quot;z''&quot; || filter == &quot;zp&quot;) {
+      zFlatFiles[[length(zFlatFiles) + 1]] &lt;- x
+    } else {
+      print(&quot;NO FILTER: file should have a filter&quot;)
+      stopifnot(FALSE)
+    }
+  } else if (s == &quot;Light Frame&quot;) {
+    expTime &lt;- hdr[which(hdr == &quot;EXPTIME&quot;) + 1]
+    filter &lt;- hdr[which(hdr == &quot;FILTER&quot;) + 1]
+    if (!is.element(expTime, neededExposureTimes)) {
+      neededExposureTimes[[length(neededExposureTimes) + 1]] &lt;-
+        expTime
+    }
+    if (!is.element(filter,lightFilters)) lightFilters &lt;- c(lightFilters,filter)
+    lightFiles[[length(lightFiles) + 1]] &lt;- x
+  }
+  close(zz)
+}</code></pre>
+<p>If the file in question, above as ‘x’, is either, a previously modified image or in a sub folder ‘calibration masters’, meaning it was also previously written by this script, then it is skipped.</p>
+<p>Once the files are sorted, the other directories that are at the same level are found and sorted. This process uses two functions from the other script; compare_dates and sort_files.</p>
+<pre class="r"><code>original &lt;- basename(script.dir)
+other_directories = list.dirs(dirname(script.dir),recursive = FALSE)
+other_directories = lapply(other_directories,basename)
+other_directories[[which(other_directories == original)]] &lt;- NULL
+other_directories &lt;- sort_files(other_directories,original) </code></pre>
 <p>The function below uses the built in Date class to return the difference, in days, between two directories. The directories given are in the format of ‘YYYYMMDD’ so there is some modifying needed. This is used to order the other directories chronologically closest to the directory in question.</p>
 <pre class="r"><code>compare_dates &lt;- function(dir1, dir2) {
   dir1 &lt;- paste(strtoi(substr(dir1, 1, 4)),

@@ -1,0 +1,210 @@
+---
+title: "Image Processing With R"
+author: "Drew Scerbo"
+date: "October 20, 2017"
+output: html_document
+---
+
+## Abstract
+Observational Astronomy takes and analyzes images to understand the workings of the universe. Images, taken from an observatory are in a file type called 'fits'. 
+
+## Introduction to Calibration Images
+
+Fits stands for 'Flexible Image Transport System'. Fits files are files that include an image as well as a header. The image is made up of counts for each pixel and, specifically for the Perkin Observatory, has the dimensions 3353 by 2532. The header holds all the image information, when and where it was taken, the angles, the type of image taken, and more. 
+
+There is one actual image type, light image, along with three types of calibration images; bias frames, dark frames, and flat fields. Each calibration image adjusts the actual image (the light or science image) for different inconsistencies. 
+
+Bias frames capture the readout signal from the camera sensor. They need to be taken will the lens cap on and at as close to zero exposure time as possible. 
+
+Dark frames are used to normalize the pixels almost. They are also taken with the lens cap on so no light can get in. It is essentially a picture of complete darkness. Dark frames should be taken with the same exposure time as the light images that are taken with. These signals could have random noise and thermal signal if the telescope is too warm. 
+
+Flat fields are correcting for optical imperfections. They are like dark frames except instead of taking a picture of complete darkness, they take a picture of complete light. Telescopes often do not distribute light across the camera sensor so the center of the image will be brighter than the outskirts. Dust will cause slight rings to be seen. 
+
+Calibrating images requires all three types of correction images. Without any, there will be inconsistencies or imperfections in the resulting images. 
+
+## Code
+
+
+### Set Up
+The main library to work with is the 'FITSio' package. It has the functions to open, see, and use the information stored in a .fits file. When running the calibration file ('Filter_Image_Processing_Script.R'), the functions script should be sourced first. 
+
+```{r setup, include=TRUE}
+
+library(FITSio)
+source('Image_Processing_Functions.R')
+```
+
+This sourcing creates all the functions that are to be used in the calibration file. The first few functions are about finding and sorting the right files. I'll show the function when it is in context.
+
+The first step requires getting and sorting all the files in the directory. The script, after being downloaded into the directory, will get the path to itself (also the path to the wanted directory) and use that to search for all the fits files. The script.dir can only be retrieved when the script is sourced rather than just run. That is why it is commented out.
+
+```{r include = FALSE}
+script.dir <- 'path'
+
+```
+
+```{r, include = TRUE}
+# script.dir <- dirname(sys.frame(1)$ofile)
+
+files <-
+  list.files(
+    path = script.dir,
+    pattern = "*.fits",
+    full.names = T,
+    recursive = TRUE
+  )
+```
+
+```{r, include = FALSE}
+xNumber <- 3352
+yNumber <- 2532
+
+biasFrameFiles <- list()
+darkFrameFiles <- list()
+lightFiles <- list()
+gFlatFiles <- list()
+iFlatFiles <- list()
+rFlatFiles <- list()
+zFlatFiles <- list()
+yFlatFiles <- list()
+neededExposureTimes <- list()
+
+masterBias <-
+  array(0, dim = c(xNumber, yNumber))
+counter <- 0
+modCounter <- 0
+count <- length(files)
+flatFilters <- c()
+lightFilters <- c()
+```
+
+The function below uses the built in Date class to return the difference, in days, between two directories. The directories given are in the format of 'YYYYMMDD' so there is some modifying needed. This is used to order the other directories chronologically closest to the directory in question. 
+
+```{r, include = TRUE}
+compare_dates <- function(dir1, dir2) {
+  dir1 <- paste(strtoi(substr(dir1, 1, 4)),
+                strtoi(substr(dir1, 5, 6)),
+                strtoi(substr(dir1, 7, 8)),
+                sep = '-')
+  d1 <- as.Date(dir1, "%Y-%m-%d")
+  
+  dir2 <- paste(strtoi(substr(dir2, 1, 4)),
+                strtoi(substr(dir2, 5, 6)),
+                strtoi(substr(dir2, 7, 8)),
+                sep = '-')
+  d2 <- as.Date(dir2, "%Y-%m-%d")
+  return(as.numeric(d1 - d2))
+}
+```
+The next function, below, uses the compare_dates function to first, compute the difference of days from the original, and second, order the directories by that difference. It returns a data frame, in order, with the basenames of the directories and their corresponding difference. 
+```{r, include=TRUE}
+sort_files <- function(basenames, original) {
+  differences <- c()
+  files2 <- c()
+  for (f in basenames) {
+    comp <- compare_dates(f, original)
+    
+    if (!is.na(comp)) {
+      differences <- c(differences, abs(as.numeric(comp)))
+      files2 <- c(files2, f)
+    }
+  }
+  df <- data.frame(file = files2, differnce = differences)
+  df <- df[order(differences),]
+  return(df)
+}
+```
+
+Once the directories are ordered, each are in 
+
+``` {r, include = TRUE}
+get_files_of_type <- function(p.dir, type, filters) {
+  if (!file.exists(p.dir)) {
+    print(paste(p.dir, "doesn't exists"))
+    return(list())
+  }
+  new_files <-
+    list.files(
+      path = p.dir,
+      pattern = "*.fits",
+      full.names = T,
+      recursive = TRUE
+    )
+  
+  for (x in new_files) {
+    fileCounter <- fileCounter + 1
+    
+    zz <- file(description = x, open = "rb")
+    header <- readFITSheader(zz)
+    hdr <- parseHdr(header)
+    s <- hdr[which(hdr == "IMAGETYP") + 1]
+    filter <- hdr[which(hdr == "FILTER") + 1]
+    
+    # sort by filter if flat field
+    if (s == type && type == 'Flat Field') {
+      if (filter %in% filters) {
+        flatCounter[[get_filter_index(filter)]] <-
+          flatCounter[[get_filter_index(filter)]] + 1
+        counter <- counter + 1
+        print(paste('Found', counter, 'new flat files of filter', filter))
+        if (filter == "g''" || filter == "gp") {
+          gFiles[[length(gFiles) + 1]] <- x
+        } else if (filter == "i''" || filter == "ip") {
+          iFiles[[length(iFiles) + 1]] <- x
+        } else if (filter == "r''" || filter == "rp") {
+          rFiles[[length(rFiles) + 1]] <- x
+        } else if (filter == "Y''" || filter == "Yp") {
+          yFiles[[length(yFiles) + 1]] <- x
+        } else if (filter == "z''" || filter == "zp") {
+          zFiles[[length(zFiles) + 1]] <- x
+        } else {
+          print("NO FILTER: file should have a filter")
+          stopifnot(FALSE)
+        }
+      }
+    } else if (s == type) {
+      counter <- counter + 1
+      print(paste('Found', counter, 'new files of type', s))
+      fileList[[length(fileList) + 1]] <- x
+    }
+    close(zz)
+  }
+  
+  if (type == 'Flat Field') {
+    return(list(gFiles, iFiles, rFiles, yFiles, zFiles))
+  } else{
+    print(paste('Found in total', length(fileList), 'more', type, 'files'))
+    return(fileList)
+  }
+}
+```
+## Instructions
+Instructions for students to run these programs:
+
+1. Download and set up R with the RStudio IDE 
+
+-This will be the environment to run these programs
+
+2. Make sure the 'FITSio' package is installed.
+
+3. Download two files into the directory of the images; 'Filter_Image_Processing_Script.R' and 'Image_Processing_Functions.R' 
+
+-'Filter_Image_Processing_Script.R' is a script to that actually takes the images in it's directory and calibrates them. It will write the calibrated images into a sub-folder called 'modified images'. During this it will create several master calibration images which are averages of the given calibration images. It will write the masters into a sub folder called 'calibration images'. 
+
+-'Image_Processing_Functions.R' is sourced in the beginning of and holds all of the functions used in the processing script. It is vital that this is also downloaded into the same directory.
+
+4. Open 'Filter_Image_Processing_Script.R' in RStudio. Click the Source button. 
+
+-RStudio has two ways of running code. 'Run' will run the whole script or a highlighted area in interactive mode while sourcing will run without extra clutter in the console. IT IS VITAL THAT THIS IS SOURCED NOT RUN. Some aspects of the script will act differently when run than when sourced. These differences will cause errors.
+
+5. In the console, a question of whether to run the script in interactive mode will appear. Input either a 'y' or 'n'. Any other input will be assumed to be a no.
+
+-Interactive mode will ask the user for directory paths to missing calibration images. If not enough are found, it will look in directories that are closest chronologically for the images until some are found or there are no more.
+
+If analyzing of flat fields is wanted: 
+
+6. Download 'Flat Field_fitting.R' into the same directory. 
+
+-'Flat Field_fitting.R' analyzes and plots the normalized. PDFs are saved into the directory 
+
+-This plots the master flat fields, so 'Filter_Image_Processing_Script.R' must be sourced first to create them.

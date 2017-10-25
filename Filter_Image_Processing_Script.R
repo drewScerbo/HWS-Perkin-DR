@@ -45,7 +45,7 @@ flatFilters <- c()
 lightFilters <- c()
 for (x in files) {
   counter <- counter + 1
-  if (length(grep('mod_',basename(x))) > 0) {
+  if (grepl('mod_',basename(x))) {
     modCounter <- modCounter + 1
     print(paste("Skipped",modCounter,"already calibrated images."))
     next
@@ -108,12 +108,8 @@ if (length(biasFrameFiles) <= 2) {
   for (dir in other_directories[[1]]){
     p2 <- file.path(dirname(script.dir),dir)
     biasFiles <- get_files_of_type(p2,'Bias Frame',NULL)
-    for (x in biasFiles){
-      Y <- readFITS(x)
-      masterBias <- masterBias + Y$imDat 
-      biasCounter <- biasCounter + 1
-      close(x)
-    }
+    biasCounter <- biasCounter + length(biasFiles)
+    biasFrameFiles <- append(biasFrameFiles,biasFiles)
     if (biasCounter > 2) break
   }
 }

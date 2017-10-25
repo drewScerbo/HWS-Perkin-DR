@@ -65,7 +65,6 @@ get_files_of_type <- function(p.dir, type, filters) {
   print(paste('Looking in', count, 'more files'))
   
   if (type == 'Flat Field') {
-    flatCounter <- list(0, 0, 0, 0, 0)
     gFiles <- list()
     iFiles <- list()
     rFiles <- list()
@@ -76,7 +75,6 @@ get_files_of_type <- function(p.dir, type, filters) {
   }
   
   for (x in new_files) {
-    fileCounter <- fileCounter + 1
     
     zz <- file(description = x, open = "rb")
     header <- readFITSheader(zz)

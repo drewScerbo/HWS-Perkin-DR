@@ -72,6 +72,7 @@ get_files_of_type <- function(p.dir, type, filters) {
     zFiles <- list()
     flatFieldFilters <-
       list(gFiles, iFiles, rFiles, yFiles, zFiles)
+    flatCounter <- c(0,0,0,0,0)
   }
   
   for (x in new_files) {

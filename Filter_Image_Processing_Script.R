@@ -4,38 +4,39 @@
 
 ### NOTES
 # add to header: dir found cal images in
-# print master mean and stdv
 
 # install.packages("FITSio")
 library(FITSio)
 script.dir <- dirname(sys.frame(1)$ofile)
-script.dir <- "/Users/drewScerbo/Desktop/ObservingImages/20170414"
+source(file.path(script.dir,'Image_Processing_Functions.R'))
 print(paste("1.",script.dir))
 print(paste("2.",getwd()))
 print(paste("3. [will input path myself]"))
-p <- readline("Which path has the image files? [1,2,3]")
+p <- readline("Which path has the image files? [1,2,3] ")
 
 if (p == '2') script.dir <- getwd()
-if (p == '3') script.dir <- readline("What is the path to the directory?")
+if (p == '3') script.dir <- readline("What is the path to the directory? ")
 while(!file.exists(script.dir)){
   print(paste(script.dir,"doesn't exist"))
-  script.dir <- readline("What is the path to the directory?")
+  script.dir <- readline("What is the path to the directory? ")
 }
 print(paste("Calibrating images in", script.dir))
 interactive <-
-  readline(prompt = "Would you like an interactive run? [y/n]")
+  readline(prompt = "Would you like an interactive run? [y/n] ")
 interactive <- ifelse(interactive == 'y', TRUE, FALSE)
-overwrite <- readline(prompt = "Would you like to overwrite already modified files? [y/n]")
-overwrite <- ifelse(overwrite == 'y',TRUE,FALSE)
-if (overwrite){
-  print("Would you like to choose to overwrite each modified files? [y]")
-  each_one <- readline(prompt = "or just overwrite them all? [n]")
-  each_one <- ifelse(each_one == 'y',TRUE,FALSE)
-} else each_one <- FALSE
-# source(file.path(script.dir,'Image_Processing_Functions.R'))
-source(
-  '/Users/drewScerbo/Documents/AstronomyF17/HWS-Perkin-DR/Image_Processing_Functions.R'
-)
+if (file.exists(file.path(script.dir,"modified images"))) {
+  overwrite <- readline(prompt = "Would you like to overwrite already modified files? [y/n] ")
+  overwrite <- ifelse(overwrite == 'y',TRUE,FALSE)
+  if (overwrite){
+    print("Would you like to choose to overwrite each modified files? [y]")
+    each_one <- readline(prompt = "or just overwrite them all? [n] ")
+    each_one <- ifelse(each_one == 'y',TRUE,FALSE)
+  } else each_one <- FALSE
+} else {
+  each_one <- FALSE
+  overwrite <- TRUE
+}
+
 ## get all the .fits files
 files <-
   list.files(
@@ -170,6 +171,10 @@ if (length(biasFrameFiles) > 0) {
   masterBias <- masterBias / length(biasFrameFiles)
   remove(biasFrameFiles)
 }
+# print master mean and stdv
+print(paste("Master bias mean:",mean(masterBias)))
+print(paste("Master bias std dv:",sd(masterBias)))
+
 # Finished masterBias
 
 # check if any light frame exposure times don't have a dark
@@ -385,25 +390,49 @@ if (length(exposureTimeDarkFiles) > 0) {
     print(paste("exposure time:", exposureTimes[[i]],"seconds"))
   }
 }
+# print master mean and stdv
+for (i in 1:length(exposureTimes)){
+  print(paste("Master Dark of ",exposureTimes[[i]],"mean",mean(masterDarks[[i]])))
+  print(paste("Master Dark of ",exposureTimes[[i]],"std dv",sd(masterDarks[[i]])))
+}
+
 # Finished masterDarks
 
 
 # Create master flat for each filter
-if (length(gFlatFiles) > 0)
+if (length(gFlatFiles) > 0){
   masterGFlat <- flatFunction(gFlatFiles, 'g')
-if (length(rFlatFiles) > 0)
-  masterRFlat <- flatFunction(rFlatFiles, 'r')
-if (length(iFlatFiles) > 0)
+  print(paste("master g flat mean",mean(masterGFlat)))
+  print(paste("master g flat std dv",sd(masterGFlat)))
+}
+if (length(iFlatFiles) > 0){
+  print(paste("master i flat mean",mean(masterIFlat)))
+  print(paste("master i flat std dv",sd(masterIFlat)))
   masterIFlat <- flatFunction(iFlatFiles, 'i')
-if (length(yFlatFiles) > 0)
+}
+if (length(rFlatFiles) > 0){
+  masterRFlat <- flatFunction(rFlatFiles, 'r')
+  print(paste("master r flat mean",mean(masterRFlat)))
+  print(paste("master r flat std dv",sd(masterRFlat)))
+}
+if (length(yFlatFiles) > 0){
   masterYFlat <- flatFunction(yFlatFiles, 'Y')
-if (length(zFlatFiles) > 0)
+  print(paste("master Y flat mean",mean(masterYFlat)))
+  print(paste("master Y flat std dv",sd(masterYFlat)))
+}
+if (length(zFlatFiles) > 0){
   masterZFlat <- flatFunction(zFlatFiles, 'z')
+  print(paste("master z flat mean",mean(masterZFlat)))
+  print(paste("master z flat std dv",sd(masterZFlat)))
+}
 remove(gFlatFiles, rFlatFiles, iFlatFiles, yFlatFiles, zFlatFiles)
+# Finished master flats
 
 # apply the calibration images to each light image and
 # write out the modified image into subfolder 'modified images'
+options(warn = -1)
 dir.create(file.path(script.dir, 'modified images'))
+options(warn = 0)
 counter <- 0
 count <- length(lightFiles)
 for (x in lightFiles) {
@@ -457,8 +486,8 @@ for (x in lightFiles) {
   } else
     dark <- masterDarks[[which(exposureTimes == expTime)]]
   
-  # don't scale for darks if scaled exp time mean is < stdv of original
-  if (mean(times[[1]] * dark / times[[2]]) <= sd(dark)) dark <- 0
+  # don't scale for darks if scaled exp time mean(dark) < mad(bias)
+  if (mean(times[[1]] * dark / times[[2]]) < mad(bias)) dark <- 0
     
   calScience <-
     Y$imDat - masterBias - times[[1]] * dark / times[[2]]
@@ -467,7 +496,9 @@ for (x in lightFiles) {
   print(paste("Wrote", counter, "of", count, "light files as", fName))
 }
 # write master images
+options(warn = -1)
 script.dir <- file.path(script.dir, 'calibration masters')
+options(warn = 0)
 dir.create(script.dir)
 writeFITSim(masterBias,
             file = file.path(script.dir, "master_bias.fits"))
@@ -498,13 +529,13 @@ if (length(masterDarks)) {
     writeFITSim(masterDarks[[i]], file = file.path(script.dir, s))
   }
 }
-# remove(a,b,count,counter,diff,difference,
-#        exp,exposureTimes,expTime,filter,i,
-#        modCounter,s,times,x,y,comment,
-#        fName,script.dir,Y,dark,neededExposureTimes,
-#        calScience,exposureTimeDarkFiles,
-#        neededFilters,lightFiles,zz,lightFilters,
-#        p2,original,xNumber,yNumber,
-#        header,hdr,flatFiles,f,flatFilters,
-#        dir,darkFrameFiles,files,moddedFiles,
-#        overwrite,interactive,each_one)
+remove(a,b,count,counter,diff,difference,
+       exp,exposureTimes,expTime,filter,i,
+       modCounter,s,times,x,y,comment,
+       fName,script.dir,Y,dark,neededExposureTimes,
+       calScience,exposureTimeDarkFiles,
+       neededFilters,lightFiles,zz,lightFilters,
+       p2,original,xNumber,yNumber,
+       header,hdr,flatFiles,flatFilters,
+       dir,darkFrameFiles,files,moddedFiles,
+       overwrite,interactive,each_one)

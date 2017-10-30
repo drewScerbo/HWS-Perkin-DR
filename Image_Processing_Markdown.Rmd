@@ -6,7 +6,7 @@ output: html_document
 ---
 
 ## Abstract
-Observational Astronomy takes and analyzes images to understand the workings of the universe. Images, taken from an observatory are in a file type called 'fits'. 
+Observational Astronomy takes and analyzes images to understand the workings of the universe. Images, taken from an observatory are in a file type called 'fits'. This program takes the fits files of a directory and, using the calibration images in or around the directory, corrects the light images for imperfections. One type of image is a 'Flat Field' image. The second part of this script will analyze those images and compare how they change over time. 
 
 ## Introduction to Calibration Images
 
@@ -78,9 +78,7 @@ Once the files are retrieved. They need to be sorted. To do that, the header of 
 
 ```{r, include = TRUE}
 for (x in files) {
-  counter <- counter + 1
   if (length(grep('mod_',basename(x))) > 0) {
-    modCounter <- modCounter + 1
     next
   }
   if (grepl('calibration masters',x)) next
@@ -126,9 +124,10 @@ for (x in files) {
 }
 ```
 
-If the file in question, above as 'x', is either, a previously modified image or in a sub folder 'calibration masters', meaning it was also previously written by this script, then it is skipped. 
+If the file in question, above as 'x', is either a previously modified image or in a sub folder 'calibration masters', meaning it was also previously written by this script, then it is skipped. 
 
-Once the files are sorted, the other directories that are at the same level are found and sorted. This process uses two functions from the other script; compare_dates and sort_files. 
+Once the files are sorted, the other directories that are at the same level are found and ordered. This process uses two functions from the other script; compare_dates and sort_files. 
+
 ```{r, include=TRUE}
 original <- basename(script.dir)
 other_directories = list.dirs(dirname(script.dir),recursive = FALSE)
@@ -176,13 +175,24 @@ sort_files <- function(basenames, original) {
 }
 ```
 
-Once the directories are ordered, each are in 
+Once the directories are ordered, there is a check to see if there is enough bias frames. A function is run on each nearby directory, in order, to search for bias frames. This process uses the get_files_of_type function which will get all of either the bias frames or the flat fields in a given directory. Bias frames are added to a list and returned. If a flat field is needed, the filters that are needed (same filters as the light frames) are given and check against. 
 
 ``` {r, include = TRUE}
 get_files_of_type <- function(p.dir, type, filters) {
   if (!file.exists(p.dir)) {
     return(list())
   }
+  
+  if (type == 'Flat Field') {
+    gFiles <- list()
+    iFiles <- list()
+    rFiles <- list()
+    yFiles <- list()
+    zFiles <- list()
+    flatFieldFilters <-
+      list(gFiles, iFiles, rFiles, yFiles, zFiles)
+  }
+  
   new_files <-
     list.files(
       path = p.dir,
@@ -192,7 +202,6 @@ get_files_of_type <- function(p.dir, type, filters) {
     )
   
   for (x in new_files) {
-    fileCounter <- fileCounter + 1
     
     zz <- file(description = x, open = "rb")
     header <- readFITSheader(zz)
@@ -229,11 +238,69 @@ get_files_of_type <- function(p.dir, type, filters) {
   if (type == 'Flat Field') {
     return(list(gFiles, iFiles, rFiles, yFiles, zFiles))
   } else{
-    print(paste('Found in total', length(fileList), 'more', type, 'files'))
     return(fileList)
   }
 }
 ```
+
+Once enough (at least 3) bias frames are found, they are averaged together to create a master bias frame. Flat fields will continue to run until their are at least 3 fields from each filter needed. This is done by giving a filter vector to the get_files_of_type function and then reevaluating which filter are needed each iteration. 
+
+```{r, include=TRUE}
+if (length(biasFrameFiles) <= 2) {
+  biasCounter <- 0
+  for (dir in other_directories[[1]]){
+    p2 <- file.path(dirname(script.dir),dir)
+    biasFiles <- get_files_of_type(p2,'Bias Frame',NULL)
+    for (x in biasFiles){
+      Y <- readFITS(x)
+      masterBias <- masterBias + Y$imDat 
+      biasCounter <- biasCounter + 1
+      close(x)
+    }
+    if (biasCounter > 2) break
+  }
+}
+
+for (x in biasFrameFiles){
+  counter <- counter + 1
+  Y <- readFITS(x)
+  masterBias <- masterBias + Y$imDat
+}
+if (length(biasFrameFiles) > 0) {
+  masterBias <- masterBias / length(biasFrameFiles)
+  remove(biasFrameFiles)
+} 
+
+if (length(flatFilters) < length(lightFilters)) {
+  for (dir in other_directories[[1]]){
+    neededFilters <- c()
+    for (f in lightFilters){
+      if (!is.element(f,flatFilters)) {neededFilters <- c(neededFilters,f)}
+    }
+    if (is.null(neededFilters)) break
+    p2 <- file.path(dirname(script.dir),dir)
+    flatFiles <- get_files_of_type(p2,'Flat Field',neededFilters)
+    gFlatFiles <- append(gFlatFiles,flatFiles[[1]])
+    iFlatFiles <- append(iFlatFiles,flatFiles[[2]])
+    rFlatFiles <- append(rFlatFiles,flatFiles[[3]])
+    yFlatFiles <- append(yFlatFiles,flatFiles[[4]])
+    zFlatFiles <- append(zFlatFiles,flatFiles[[5]])
+    flatFilters <- c()
+    if (length(gFlatFiles) > 2) flatFilters <- c(flatFilters,"g''","gp")
+    if (length(iFlatFiles) > 2) flatFilters <- c(flatFilters,"i''","ip")
+    if (length(rFlatFiles) > 2) flatFilters <- c(flatFilters,"r''","rp")
+    if (length(yFlatFiles) > 2) flatFilters <- c(flatFilters,"Y''","Yp")
+    if (length(zFlatFiles) > 2) flatFilters <- c(flatFilters,"z''","zp")
+  }
+}
+```
+
+
+
+
+## Calibration Process
+Dark subtraction only occurs when mean of scaled dark is less than the median absolute deviation of the master bias. This is to prevent when the scaled dark has negative values that would add instead of subtract noise to the light image.
+
 ## Instructions
 Instructions for students to run these programs:
 

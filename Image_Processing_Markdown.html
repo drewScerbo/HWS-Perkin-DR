@@ -126,7 +126,7 @@ $(document).ready(function () {
 
 <div id="abstract" class="section level2">
 <h2>Abstract</h2>
-<p>Observational Astronomy takes and analyzes images to understand the workings of the universe. Images, taken from an observatory are in a file type called ‘fits’.</p>
+<p>Observational Astronomy takes and analyzes images to understand the workings of the universe. Images, taken from an observatory are in a file type called ‘fits’. This program takes the fits files of a directory and, using the calibration images in or around the directory, corrects the light images for imperfections. One type of image is a ‘Flat Field’ image. The second part of this script will analyze those images and compare how they change over time.</p>
 </div>
 <div id="introduction-to-calibration-images" class="section level2">
 <h2>Introduction to Calibration Images</h2>
@@ -158,9 +158,7 @@ files &lt;-
 count &lt;- length(files)</code></pre>
 <p>Once the files are retrieved. They need to be sorted. To do that, the header of each file is opened and the type of image (light, bias, dark, or flat) is stored. The actual image does not need to be opened until later. Just opening the header decreases the time needed to open the files, therefore decreasing the total time for sorting. Bias and dark frames are just stored into a list containing their files. Flat fields are sorted further by their filter. For light frames, the filter and exposure time are extracted and added to lists. These lists are used to determine whether more dark frames (same exposure time) or flat fields (same filter) are needed.</p>
 <pre class="r"><code>for (x in files) {
-  counter &lt;- counter + 1
   if (length(grep('mod_',basename(x))) &gt; 0) {
-    modCounter &lt;- modCounter + 1
     next
   }
   if (grepl('calibration masters',x)) next
@@ -204,8 +202,8 @@ count &lt;- length(files)</code></pre>
   }
   close(zz)
 }</code></pre>
-<p>If the file in question, above as ‘x’, is either, a previously modified image or in a sub folder ‘calibration masters’, meaning it was also previously written by this script, then it is skipped.</p>
-<p>Once the files are sorted, the other directories that are at the same level are found and sorted. This process uses two functions from the other script; compare_dates and sort_files.</p>
+<p>If the file in question, above as ‘x’, is either a previously modified image or in a sub folder ‘calibration masters’, meaning it was also previously written by this script, then it is skipped.</p>
+<p>Once the files are sorted, the other directories that are at the same level are found and ordered. This process uses two functions from the other script; compare_dates and sort_files.</p>
 <pre class="r"><code>original &lt;- basename(script.dir)
 other_directories = list.dirs(dirname(script.dir),recursive = FALSE)
 other_directories = lapply(other_directories,basename)
@@ -242,10 +240,34 @@ other_directories &lt;- sort_files(other_directories,original) </code></pre>
   df &lt;- df[order(differences),]
   return(df)
 }</code></pre>
-<p>Once the directories are ordered, each are in</p>
+<p>Once the directories are ordered, there is a check to see if there is enough bias frames. A function is run on each nearby directory, in order, to search for bias frames. Once enough (at least 3) bias frames are found, they are averaged together to create a masterBias.</p>
+<pre class="r"><code>if (length(biasFrameFiles) &lt;= 2) {
+  biasCounter &lt;- 0
+  for (dir in other_directories[[1]]){
+    p2 &lt;- file.path(dirname(script.dir),dir)
+    biasFiles &lt;- get_files_of_type(p2,'Bias Frame',NULL)
+    for (x in biasFiles){
+      Y &lt;- readFITS(x)
+      masterBias &lt;- masterBias + Y$imDat 
+      biasCounter &lt;- biasCounter + 1
+      close(x)
+    }
+    if (biasCounter &gt; 2) break
+  }
+}
+
+for (x in biasFrameFiles){
+  counter &lt;- counter + 1
+  Y &lt;- readFITS(x)
+  masterBias &lt;- masterBias + Y$imDat
+}
+if (length(biasFrameFiles) &gt; 0) {
+  masterBias &lt;- masterBias / length(biasFrameFiles)
+  remove(biasFrameFiles)
+} </code></pre>
+<p>This process uses the get_files_of_type function which will get all of either the bias frames or the flat fields in a given directory. Bias frames are added to a list and returned. If a flat field is needed the are sorted by filter first.</p>
 <pre class="r"><code>get_files_of_type &lt;- function(p.dir, type, filters) {
   if (!file.exists(p.dir)) {
-    print(paste(p.dir, &quot;doesn't exists&quot;))
     return(list())
   }
   new_files &lt;-
@@ -270,8 +292,6 @@ other_directories &lt;- sort_files(other_directories,original) </code></pre>
       if (filter %in% filters) {
         flatCounter[[get_filter_index(filter)]] &lt;-
           flatCounter[[get_filter_index(filter)]] + 1
-        counter &lt;- counter + 1
-        print(paste('Found', counter, 'new flat files of filter', filter))
         if (filter == &quot;g''&quot; || filter == &quot;gp&quot;) {
           gFiles[[length(gFiles) + 1]] &lt;- x
         } else if (filter == &quot;i''&quot; || filter == &quot;ip&quot;) {
@@ -288,8 +308,6 @@ other_directories &lt;- sort_files(other_directories,original) </code></pre>
         }
       }
     } else if (s == type) {
-      counter &lt;- counter + 1
-      print(paste('Found', counter, 'new files of type', s))
       fileList[[length(fileList) + 1]] &lt;- x
     }
     close(zz)
@@ -298,11 +316,13 @@ other_directories &lt;- sort_files(other_directories,original) </code></pre>
   if (type == 'Flat Field') {
     return(list(gFiles, iFiles, rFiles, yFiles, zFiles))
   } else{
-    print(paste('Found in total', length(fileList), 'more', type, 'files'))
     return(fileList)
   }
 }</code></pre>
 </div>
+</div>
+<div id="calibration-process" class="section level2">
+<h2>Calibration Process</h2>
 </div>
 <div id="instructions" class="section level2">
 <h2>Instructions</h2>

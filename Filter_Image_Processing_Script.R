@@ -117,11 +117,11 @@ for (x in files) {
   if (s == "Bias Frame") {
     # average all biases into a master bias field
     biasFrameFiles[[length(biasFrameFiles) + 1]] <- x
-    biasDirectory <- script.dir
+    biasDirectory <- basename(script.dir)
     
   } else if (s == "Dark Frame") {
     darkFrameFiles[[length(darkFrameFiles) + 1]] <- x
-    darkDirectory <- script.dir
+    darkDirectory <- basename(script.dir)
     
   } else if (s == "Flat Field") {
     filter <- hdr[which(hdr == "FILTER") + 1]
@@ -129,19 +129,19 @@ for (x in files) {
       flatFilters <- c(flatFilters, filter)
     if (filter == "g''" || filter == "gp") {
       gFlatFiles[[length(gFlatFiles) + 1]] <- x
-      gFlatDirectory <- script.dir
+      gFlatDirectory <- basename(script.dir)
     } else if (filter == "i''" || filter == "ip") {
       iFlatFiles[[length(iFlatFiles) + 1]] <- x
-      iFlatDirectory <- script.dir
+      iFlatDirectory <- basename(script.dir)
     } else if (filter == "r''" || filter == "rp") {
       rFlatFiles[[length(rFlatFiles) + 1]] <- x
-      rFlatDirectory <- script.dir
+      rFlatDirectory <- basename(script.dir)
     } else if (filter == "Y''" || filter == "Yp") {
       yFlatFiles[[length(yFlatFiles) + 1]] <- x
-      yFlatDirectory <- script.dir
+      yFlatDirectory <- basename(script.dir)
     } else if (filter == "z''" || filter == "zp") {
       zFlatFiles[[length(zFlatFiles) + 1]] <- x
-      zFlatDirectory <- script.dir
+      zFlatDirectory <- basename(script.dir)
     } else {
       print("NO FILTER: file should have a filter")
       stopifnot(FALSE)
@@ -180,7 +180,7 @@ if (!interactive && length(biasFrameFiles) < 5) {
     biasCounter <- biasCounter + length(biasFiles)
     biasFrameFiles <- append(biasFrameFiles, biasFiles)
     if (length(biasFiles))
-      biasDirectory <- c(biasDirectory, p2)
+      biasDirectory <- c(biasDirectory, basename(p2))
     if (biasCounter > 4)
       break
   }
@@ -207,7 +207,7 @@ if (!interactive && length(biasFrameFiles) < 5) {
     s <- hdr[which(hdr == "IMAGETYP") + 1]
     
     if (s == "Bias Frame") {
-      biasDirectory <- c(biasDirectory, p2)
+      biasDirectory <- c(biasDirectory, basename(p2))
       biasFrameFiles[[length(biasFrameFiles) + 1]] <- x
     }
   }
@@ -256,7 +256,7 @@ for (exp in neededExposureTimes) {
       neededExposureTimes[neededExposureTimes != exp]
 }
 
-if (length(neededExposureTimes)) {
+if (length(neededExposureTimes) || !length(darkFrameFiles)) {
   # look or ask for dark frames in nearby directories
   if (interactive) {
     for (exp in neededExposureTimes) {
@@ -286,7 +286,7 @@ if (length(neededExposureTimes)) {
           addedFrames <- TRUE
           darkFrameFiles[[length(darkFrameFiles) + 1]] <- x
           counter <- counter + 1
-          darkDirectory <- c(darkDirectory, p2)
+          darkDirectory <- c(darkDirectory, basename(p2))
         }
         close(zz)
       }
@@ -317,7 +317,7 @@ if (length(neededExposureTimes)) {
             neededExposureTimes[[i]] <- NULL
           close(zz)
         }
-        darkDirectory <- c(darkDirectory, p2)
+        darkDirectory <- c(darkDirectory, basename(p2))
       }
       if (!length(neededExposureTimes))
         break
@@ -345,19 +345,19 @@ if (FALSE %in% (lightFilters %in% flatFilters)) {
       zFlatFiles <- append(zFlatFiles, flatFiles[[5]])
       
       if (length(flatFiles[[1]])) {
-        gFlatDirectory <- c(gFlatDirectory, p2)
+        gFlatDirectory <- c(gFlatDirectory, basename(p2))
       }
       if (length(flatFiles[[2]])) {
-        iFlatDirectory <- c(iFlatDirectory, p2)
+        iFlatDirectory <- c(iFlatDirectory, basename(p2))
       }
       if (length(flatFiles[[3]])) {
-        rFlatDirectory <- c(rFlatDirectory, p2)
+        rFlatDirectory <- c(rFlatDirectory, basename(p2))
       }
       if (length(flatFiles[[4]])) {
-        yFlatDirectory <- c(yFlatDirectory, p2)
+        yFlatDirectory <- c(yFlatDirectory, basename(p2))
       }
       if (length(flatFiles[[5]])) {
-        zFlatDirectory <- c(zFlatDirectory, p2)
+        zFlatDirectory <- c(zFlatDirectory, basename(p2))
       }
       
       flatFilters <- c()
@@ -468,7 +468,7 @@ for (x in darkFrameFiles) {
 
 masterDarks <- list()
 count <- length(exposureTimeDarkFiles)
-if (length(exposureTimeDarkFiles) > 0) {
+if (length(exposureTimeDarkFiles)) {
   for (i in 1:length(exposureTimeDarkFiles)) {
     masterDarks[[length(masterDarks) + 1]] <-
       darkCounter(exposureTimeDarkFiles[[i]])
@@ -570,21 +570,26 @@ for (x in lightFiles) {
   expTime <- paste(times[[2]], ".", sep = "")
   if (grepl("NoAutoDark", x) || !length(exposureTimes)) {
     dark <- 0
-  } else
-    dark <- masterDarks[[which(exposureTimes == expTime)]]
+  } else {
+    i <- which(exposureTimes == expTime)
+    dark <- masterDarks[[i]]
+  }
   
   # don't scale for darks if scaled exp time mean(dark) < mad(bias)
   if (is.null(times))
     times <- c(0, 1)
-  if (mean(times[[1]] * dark / times[[2]]) < mad(masterBias))
+  if (mean(times[[1]] * dark / times[[2]]) < mad(masterBias)){
     dark <- 0
+    i <- -1
+  }
   calScience <-
     Y$imDat - masterBias - times[[1]] * dark / times[[2]]
   calScience <- calScience / masterFlat
-  fName <- writeCalScience(calScience, x, Y)
+  fName <- writeCalScience(calScience, x, Y,i)
   print(paste("Wrote", counter, "of", count, "light files as", fName))
 }
-# write master images
+
+# write master calibration images
 options(warn = -1)
 script.dir <- file.path(script.dir, 'calibration masters')
 options(warn = 0)
@@ -624,7 +629,10 @@ remove(a,b,count,counter,diff,difference,
        fName,script.dir,Y,dark,neededExposureTimes,
        calScience,exposureTimeDarkFiles,
        neededFilters,lightFiles,zz,lightFilters,
-       p2,original,xNumber,yNumber,
+       p2,original,xNumber,yNumber,p,
        header,hdr,flatFiles,flatFilters,
        dir,darkFrameFiles,files,moddedFiles,
-       overwrite,interactive,each_one)
+       overwrite,interactive,each_one,darkFiles,
+       gFlatDirectory,iFlatDirectory,rFlatDirectory,
+       yFlatDirectory,zFlatDirectory,biasFiles,
+       biasDirectory,darkDirectory,biasCounter)

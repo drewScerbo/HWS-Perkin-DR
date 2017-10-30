@@ -77,6 +77,9 @@ get_files_of_type <- function(p.dir, type, filters) {
   
   for (x in new_files) {
     
+    if (grepl('mod_', basename(x))) next
+    if (grepl('calibration masters', x)) next
+    
     zz <- file(description = x, open = "rb")
     header <- readFITSheader(zz)
     hdr <- parseHdr(header)
@@ -141,7 +144,10 @@ get_dark_files <- function(p.dir, expTimes) {
   print(paste('Looking at', count, 'more files'))
   
   for (x in new_files) {
-
+    
+    if (grepl('mod_', basename(x))) next
+    if (grepl('calibration masters', x)) next
+    
     zz <- file(description = x, open = "rb")
     header <- readFITSheader(zz)
     
@@ -216,20 +222,32 @@ flatFunction <- function(f,filter) {
 }
 
 # Writes the calibrated science frame in the given directory
-writeCalScience <- function (science, x, Y,c) {
+writeCalScience <- function (science, x, Y) {
   fName <- paste("mod_", basename(x), sep = '')
   dirName <- file.path(dirname(x), 'modified images')
   dir.create(dirName, showWarnings = FALSE)
   bzero <- Y$hdr[which(Y$hdr == "BZERO") + 1]
   bscale <- Y$hdr[which(Y$hdr == "BSCALE") + 1]
   f <- file.path(dirName, fName)
+  header <- Y$header
+  header <- addKwv("BSUBDIR","NULL",biasDirectory,header=header)
+  if (length(exposureTimes)){
+    for (i in 1:length(exposureTimes))
+    header <- addKwv("DSUBDIR",exposureTimes[[i]],darkDirectory[[i]],header=header)
+  } else {
+    header <- addKwv("DSUBDIR","NONE",header=header)
+  }
+  if (exists('masterRFlat')){
+    dir <- basename(rFlatDirectory)
+    header <- addKwv("FLATDIR",'r',dir,header=header)
+  }
+  
   writeFITSim(
     calScience,
     file = f,
     axDat = Y$axDat,
-    header = Y$header,
-    bscale = strtoi(bscale),
-    c2 = c
+    header = header,
+    bscale = strtoi(bscale)
   )
   return(fName)
 }

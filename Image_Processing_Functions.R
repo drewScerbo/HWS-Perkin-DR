@@ -156,8 +156,11 @@ get_dark_files <- function(p.dir, expTimes) {
     s <- hdr[which(hdr == "IMAGETYP") + 1]
     exp <- hdr[which(hdr == "EXPTIME") + 1]
     
-    # sort by filter if flat field
-    if (s == 'Dark Frame' && exp %in% expTimes) {
+    difference <- .Machine$integer.max
+    for (e in expTimes){
+      difference <- abs(as.numeric(exp) - as.numeric(e))
+    }
+    if (s == 'Dark Frame' && difference <= .5*as.numeric(exp)) {
       fileList[[length(fileList) + 1]] <- x
       counter <- counter + 1
       print(paste('Found', counter, 'new dark fames of exposure time', exp))
@@ -222,7 +225,7 @@ flatFunction <- function(f,filter) {
 }
 
 # Writes the calibrated science frame in the given directory
-writeCalScience <- function (science, x, Y) {
+writeCalScience <- function (science, x, Y,darkUsed) {
   fName <- paste("mod_", basename(x), sep = '')
   dirName <- file.path(dirname(x), 'modified images')
   dir.create(dirName, showWarnings = FALSE)
@@ -230,16 +233,42 @@ writeCalScience <- function (science, x, Y) {
   bscale <- Y$hdr[which(Y$hdr == "BSCALE") + 1]
   f <- file.path(dirName, fName)
   header <- Y$header
-  header <- addKwv("BSUBDIR","NULL",biasDirectory,header=header)
-  if (length(exposureTimes)){
-    for (i in 1:length(exposureTimes))
-    header <- addKwv("DSUBDIR",exposureTimes[[i]],darkDirectory[[i]],header=header)
+  header <- addKwv("BSUBDIR",biasDirectory,"Directory bias frames are from",header=header)
+  if (darkUsed > 0) {
+    header <- addKwv("DSUBDIR",exposureTimes[[darkUsed]],darkDirectory[[darkUsed]],header=header)
   } else {
     header <- addKwv("DSUBDIR","NONE",header=header)
   }
-  if (exists('masterRFlat')){
-    dir <- basename(rFlatDirectory)
-    header <- addKwv("FLATDIR",'r',dir,header=header)
+  filter <- get_filter_index(Y$hdr[which(Y$hdr == "FILTER") + 1])
+  if (filter == 1){
+    if (exists("masterGFlat")) {
+      dir <- basename(gFlatDirectory)
+      header <- addKwv("FLATDIR","g''",dir,header=header)
+    } else header <- addKwv("FLATDIR","g''","NONE",header=header)
+  }
+  if (filter == 2){
+    if (exists("masterIFlat")) {
+      dir <- basename(iFlatDirectory)
+      header <- addKwv("FLATDIR","i''",dir,header=header)
+    } else header <- addKwv("FLATDIR","i''","NONE",header=header)
+  }
+  if (filter == 3){
+    if (exists("masterRFlat")) {
+      dir <- basename(rFlatDirectory)
+      header <- addKwv("FLATDIR","r''",dir,header=header)
+    } else header <- addKwv("FLATDIR","r''","NONE",header=header)
+  }
+  if (filter == 4){
+    if (exists("masterYFlat")) {
+      dir <- basename(yFlatDirectory)
+      header <- addKwv("FLATDIR","Y''",dir,header=header)
+    } else header <- addKwv("FLATDIR","Y''","NONE",header=header)
+  }
+  if (filter == 5){
+    if (exists("masterZFlat")) {
+      dir <- basename(zFlatDirectory)
+      header <- addKwv("FLATDIR","z''",dir,header=header)
+    } else header <- addKwv("FLATDIR","z''","NONE",header=header)
   }
   
   writeFITSim(

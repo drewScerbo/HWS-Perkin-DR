@@ -8,30 +8,35 @@
 # install.packages("FITSio")
 library(FITSio)
 script.dir <- dirname(sys.frame(1)$ofile)
-source(file.path(script.dir,'Image_Processing_Functions.R'))
-print(paste("1.",script.dir))
-print(paste("2.",getwd()))
+source(file.path(script.dir, 'Image_Processing_Functions.R'))
+print(paste("1.", script.dir))
+print(paste("2.", getwd()))
 print(paste("3. [will input path myself]"))
 p <- readline("Which path has the image files? [1,2,3] ")
 
-if (p == '2') script.dir <- getwd()
-if (p == '3') script.dir <- readline("What is the path to the directory? ")
-while(!file.exists(script.dir)){
-  print(paste(script.dir,"doesn't exist"))
+if (p == '2')
+  script.dir <- getwd()
+if (p == '3')
+  script.dir <- readline("What is the path to the directory? ")
+while (!file.exists(script.dir)) {
+  print(paste(script.dir, "doesn't exist"))
   script.dir <- readline("What is the path to the directory? ")
 }
 print(paste("Calibrating images in", script.dir))
 interactive <-
   readline(prompt = "Would you like an interactive run? [y/n] ")
 interactive <- ifelse(interactive == 'y', TRUE, FALSE)
-if (file.exists(file.path(script.dir,"modified images"))) {
-  overwrite <- readline(prompt = "Would you like to overwrite already modified files? [y/n] ")
-  overwrite <- ifelse(overwrite == 'y',TRUE,FALSE)
-  if (overwrite){
-    print("Would you like to choose to overwrite each modified files? [y]")
-    each_one <- readline(prompt = "or just overwrite them all? [n] ")
-    each_one <- ifelse(each_one == 'y',TRUE,FALSE)
-  } else each_one <- FALSE
+if (file.exists(file.path(script.dir, "modified images"))) {
+  overwrite <-
+    readline(prompt = "Would you like to overwrite already modified files? [y/n] ")
+  overwrite <- ifelse(overwrite == 'y', TRUE, FALSE)
+  if (overwrite) {
+    each_one <-
+      readline(prompt = "Would you like to choose to overwrite each modified file [y]
+               or just overwrite them all? [n] ")
+    each_one <- ifelse(each_one == 'y', TRUE, FALSE)
+  } else
+    each_one <- FALSE
 } else {
   each_one <- FALSE
   overwrite <- TRUE
@@ -72,35 +77,51 @@ count <- length(files)
 flatFilters <- c()
 lightFilters <- c()
 moddedFiles <- c()
-if (!overwrite){
-  for (x in files){
-    if (grepl('mod_', basename(x))) 
-      moddedFiles <- c(moddedFiles, substr(basename(x),5,nchar(basename(x))))
+if (!overwrite) {
+  for (x in files) {
+    if (grepl('mod_', basename(x)))
+      moddedFiles <-
+        c(moddedFiles, substr(basename(x), 5, nchar(basename(x))))
   }
 }
+biasDirectory <- c()
+darkDirectory <- c()
+gFlatDirectory <- c()
+iFlatDirectory <- c()
+rFlatDirectory <- c()
+yFlatDirectory <- c()
+zFlatDirectory <- c()
 for (x in files) {
   counter <- counter + 1
-  if (grepl('mod_', basename(x))) next
-  if (grepl('calibration masters', x)) next
-  if (each_one && basename(x) %in% moddedFiles){
-    each <- readline(prompt = paste("Overwrite? [y/n]",basename(x),":"))
-    if (each == 'n') next
+  if (grepl('mod_', basename(x)))
+    next
+  if (grepl('calibration masters', x))
+    next
+  if (each_one && basename(x) %in% moddedFiles) {
+    each <- readline(prompt = paste("Overwrite? [y/n]", basename(x), ":"))
+    if (each == 'n')
+      next
   }
-  if (!overwrite && basename(x) %in% moddedFiles) next
+  if (!overwrite && basename(x) %in% moddedFiles)
+    next
   zz <- file(description = x, open = "rb")
   header <- readFITSheader(zz)
   hdr <- parseHdr(header)
   s <- hdr[which(hdr == "IMAGETYP") + 1]
   
-  if (hdr[which(hdr == "NAXIS1") + 1] != xNumber) next
-  if (hdr[which(hdr == "NAXIS2") + 1] != yNumber) next
+  if (hdr[which(hdr == "NAXIS1") + 1] != xNumber)
+    next
+  if (hdr[which(hdr == "NAXIS2") + 1] != yNumber)
+    next
   
   if (s == "Bias Frame") {
     # average all biases into a master bias field
     biasFrameFiles[[length(biasFrameFiles) + 1]] <- x
+    biasDirectory <- script.dir
     
   } else if (s == "Dark Frame") {
     darkFrameFiles[[length(darkFrameFiles) + 1]] <- x
+    darkDirectory <- script.dir
     
   } else if (s == "Flat Field") {
     filter <- hdr[which(hdr == "FILTER") + 1]
@@ -108,14 +129,19 @@ for (x in files) {
       flatFilters <- c(flatFilters, filter)
     if (filter == "g''" || filter == "gp") {
       gFlatFiles[[length(gFlatFiles) + 1]] <- x
+      gFlatDirectory <- script.dir
     } else if (filter == "i''" || filter == "ip") {
       iFlatFiles[[length(iFlatFiles) + 1]] <- x
+      iFlatDirectory <- script.dir
     } else if (filter == "r''" || filter == "rp") {
       rFlatFiles[[length(rFlatFiles) + 1]] <- x
+      rFlatDirectory <- script.dir
     } else if (filter == "Y''" || filter == "Yp") {
       yFlatFiles[[length(yFlatFiles) + 1]] <- x
+      yFlatDirectory <- script.dir
     } else if (filter == "z''" || filter == "zp") {
       zFlatFiles[[length(zFlatFiles) + 1]] <- x
+      zFlatDirectory <- script.dir
     } else {
       print("NO FILTER: file should have a filter")
       stopifnot(FALSE)
@@ -153,8 +179,37 @@ if (!interactive && length(biasFrameFiles) < 5) {
     biasFiles <- get_files_of_type(p2, 'Bias Frame', NULL)
     biasCounter <- biasCounter + length(biasFiles)
     biasFrameFiles <- append(biasFrameFiles, biasFiles)
+    if (length(biasFiles))
+      biasDirectory <- c(biasDirectory, p2)
     if (biasCounter > 4)
       break
+  }
+} else if (length(biasFrameFiles) < 5) {
+  p2 <-
+    readline(prompt = "Enter a file path for bias Frames: ")
+  while (!file.exists(p2)) {
+    print(paste(p2, "doesn't exist"))
+    p2 <-
+      readline(prompt = "Enter a file path for bias Frames: ")
+  }
+  
+  files <-
+    list.files(
+      path = p2,
+      pattern = "*.fits",
+      full.names = T,
+      recursive = TRUE
+    )
+  for (x in files) {
+    zz <- file(description = x, open = "rb")
+    header <- readFITSheader(zz)
+    hdr <- parseHdr(header)
+    s <- hdr[which(hdr == "IMAGETYP") + 1]
+    
+    if (s == "Bias Frame") {
+      biasDirectory <- c(biasDirectory, p2)
+      biasFrameFiles[[length(biasFrameFiles) + 1]] <- x
+    }
   }
 }
 
@@ -170,10 +225,11 @@ for (x in biasFrameFiles) {
 if (length(biasFrameFiles) > 0) {
   masterBias <- masterBias / length(biasFrameFiles)
   remove(biasFrameFiles)
-}
+} else
+  masterBias <- array(0, dim = c(xNumber, yNumber))
 # print master mean and stdv
-print(paste("Master bias mean:",mean(masterBias)))
-print(paste("Master bias std dv:",sd(masterBias)))
+print(paste("Master bias mean:", mean(masterBias)))
+print(paste("Master bias std dv:", sd(masterBias)))
 
 # Finished masterBias
 
@@ -195,8 +251,9 @@ for (x in darkFrameFiles) {
 }
 
 for (exp in neededExposureTimes) {
-  if (as.numeric(exp) < 30) 
-    neededExposureTimes <- neededExposureTimes[neededExposureTimes != exp]
+  if (as.numeric(exp) < 30)
+    neededExposureTimes <-
+      neededExposureTimes[neededExposureTimes != exp]
 }
 
 if (length(neededExposureTimes)) {
@@ -204,13 +261,13 @@ if (length(neededExposureTimes)) {
   if (interactive) {
     for (exp in neededExposureTimes) {
       question <- "Enter a file path for darks with exposure time '"
-      x <-
+      p2 <-
         readline(prompt = paste(question, exp, "':", sep = ''))
-      if (!file.exists(x))
+      if (!file.exists(p2))
         next
       files <-
         list.files(
-          path = script.dir,
+          path = p2,
           pattern = "*.fits",
           full.names = T,
           recursive = TRUE
@@ -229,6 +286,7 @@ if (length(neededExposureTimes)) {
           addedFrames <- TRUE
           darkFrameFiles[[length(darkFrameFiles) + 1]] <- x
           counter <- counter + 1
+          darkDirectory <- c(darkDirectory, p2)
         }
         close(zz)
       }
@@ -240,25 +298,27 @@ if (length(neededExposureTimes)) {
   } else {
     for (dir in other_directories[[1]]) {
       p2 <- file.path(dirname(script.dir), dir)
+      darkFiles <- get_dark_files(p2, neededExposureTimes)
       darkFrameFiles <-
-        append(darkFrameFiles,
-               get_dark_files(p2, neededExposureTimes))
+        append(darkFrameFiles, darkFiles)
       
-      exposureTimes <- c() # list of exposure times of the darks
-      for (x in darkFrameFiles) {
-        zz <- file(description = x, open = "rb")
-        header <- readFITSheader(zz)
-        hdr <- parseHdr(header)
-        s <- hdr[which(hdr == "EXPTIME") + 1]
-        if (!is.element(s, exposureTimes)) {
-          exposureTimes <- c(exposureTimes, s)
+      if (length(darkFiles)) {
+        exposureTimes <- c() # list of exposure times of the darks
+        for (x in darkFrameFiles) {
+          zz <- file(description = x, open = "rb")
+          header <- readFITSheader(zz)
+          hdr <- parseHdr(header)
+          s <- hdr[which(hdr == "EXPTIME") + 1]
+          if (!is.element(s, exposureTimes)) {
+            exposureTimes <- c(exposureTimes, s)
+          }
+          i <- which(neededExposureTimes == s)
+          if (length(i) > 0)
+            neededExposureTimes[[i]] <- NULL
+          close(zz)
         }
-        i <- which(neededExposureTimes == s)
-        if (length(i) > 0)
-          neededExposureTimes[[i]] <- NULL
-        close(zz)
+        darkDirectory <- c(darkDirectory, p2)
       }
-      
       if (!length(neededExposureTimes))
         break
     }
@@ -266,7 +326,6 @@ if (length(neededExposureTimes)) {
 }
 
 if (FALSE %in% (lightFilters %in% flatFilters)) {
-  
   # Look or ask for flat fields in the needed filters
   if (!interactive) {
     for (dir in other_directories[[1]]) {
@@ -276,7 +335,8 @@ if (FALSE %in% (lightFilters %in% flatFilters)) {
         break
       
       p2 <- file.path(dirname(script.dir), dir)
-      flatFiles <- get_files_of_type(p2, 'Flat Field', neededFilters)
+      flatFiles <-
+        get_files_of_type(p2, 'Flat Field', neededFilters)
       
       gFlatFiles <- append(gFlatFiles, flatFiles[[1]])
       iFlatFiles <- append(iFlatFiles, flatFiles[[2]])
@@ -284,17 +344,38 @@ if (FALSE %in% (lightFilters %in% flatFilters)) {
       yFlatFiles <- append(yFlatFiles, flatFiles[[4]])
       zFlatFiles <- append(zFlatFiles, flatFiles[[5]])
       
+      if (length(flatFiles[[1]])) {
+        gFlatDirectory <- c(gFlatDirectory, p2)
+      }
+      if (length(flatFiles[[2]])) {
+        iFlatDirectory <- c(iFlatDirectory, p2)
+      }
+      if (length(flatFiles[[3]])) {
+        rFlatDirectory <- c(rFlatDirectory, p2)
+      }
+      if (length(flatFiles[[4]])) {
+        yFlatDirectory <- c(yFlatDirectory, p2)
+      }
+      if (length(flatFiles[[5]])) {
+        zFlatDirectory <- c(zFlatDirectory, p2)
+      }
+      
       flatFilters <- c()
-      if (length(gFlatFiles) > 2)
+      if (length(gFlatFiles) > 2) {
         flatFilters <- c(flatFilters, "g''", "gp")
-      if (length(iFlatFiles) > 2)
+      }
+      if (length(iFlatFiles) > 2) {
         flatFilters <- c(flatFilters, "i''", "ip")
-      if (length(rFlatFiles) > 2)
+      }
+      if (length(rFlatFiles) > 2) {
         flatFilters <- c(flatFilters, "r''", "rp")
-      if (length(yFlatFiles) > 2)
+      }
+      if (length(yFlatFiles) > 2) {
         flatFilters <- c(flatFilters, "Y''", "Yp")
-      if (length(zFlatFiles) > 2)
+      }
+      if (length(zFlatFiles) > 2) {
         flatFilters <- c(flatFilters, "z''", "zp")
+      }
     }
   } else {
     for (f in lightFilters[!lightFilters %in% flatFilters]) {
@@ -305,13 +386,13 @@ if (FALSE %in% (lightFilters %in% flatFilters)) {
         break
       
       question <- "Enter a file path for flat fields of filter "
-      x <- readline(prompt = paste(question, f, " :", sep = ''))
-      if (!file.exists(x))
+      p2 <- readline(prompt = paste(question, f, " :", sep = ''))
+      if (!file.exists(p2))
         next
-      print(paste("Looking in:", x))
+      print(paste("Looking in:", p2))
       new_files <-
         list.files(
-          path = x,
+          path = p2,
           pattern = "*.fits",
           full.names = T,
           recursive = TRUE
@@ -332,16 +413,21 @@ if (FALSE %in% (lightFilters %in% flatFilters)) {
         s <- hdr[which(hdr == "IMAGETYP") + 1]
         if (s == 'Flat Field' && filter %in% neededFilters) {
           i <- get_filter_index(filter)
-          if (i == 1)
+          if (i == 1) {
             gFlatFiles <- append(gFlatFiles, x)
-          if (i == 2)
+          }
+          if (i == 2) {
             iFlatFiles <- append(iFlatFiles, x)
-          if (i == 3)
+          }
+          if (i == 3) {
             rFlatFiles <- append(rFlatFiles, x)
-          if (i == 4)
+          }
+          if (i == 4) {
             yFlatFiles <- append(yFlatFiles, x)
-          if (i == 5)
+          }
+          if (i == 5) {
             zFlatFiles <- append(zFlatFiles, x)
+          }
           flatCounter[[i]] <- flatCounter[[i]] + 1
           print(paste(
             "Added",
@@ -387,43 +473,50 @@ if (length(exposureTimeDarkFiles) > 0) {
     masterDarks[[length(masterDarks) + 1]] <-
       darkCounter(exposureTimeDarkFiles[[i]])
     print(paste("Averaging", i, "of", count, "master darks"))
-    print(paste("exposure time:", exposureTimes[[i]],"seconds"))
+    print(paste("exposure time:", exposureTimes[[i]], "seconds"))
+  }
+} else
+  print("Found no darks of a needed exposure time")
+# print master mean and stdv
+if (length(exposureTimes)) {
+  for (i in 1:length(exposureTimes)) {
+    print(paste(
+      "Master Dark of ",
+      exposureTimes[[i]],
+      "mean",
+      mean(masterDarks[[i]])
+    ))
+    print(paste("Master Dark of ", exposureTimes[[i]], "std dv", sd(masterDarks[[i]])))
   }
 }
-# print master mean and stdv
-for (i in 1:length(exposureTimes)){
-  print(paste("Master Dark of ",exposureTimes[[i]],"mean",mean(masterDarks[[i]])))
-  print(paste("Master Dark of ",exposureTimes[[i]],"std dv",sd(masterDarks[[i]])))
-}
-
 # Finished masterDarks
 
 
 # Create master flat for each filter
-if (length(gFlatFiles) > 0){
+if (length(gFlatFiles) > 0) {
   masterGFlat <- flatFunction(gFlatFiles, 'g')
-  print(paste("master g flat mean",mean(masterGFlat)))
-  print(paste("master g flat std dv",sd(masterGFlat)))
+  print(paste("master g flat mean", mean(masterGFlat)))
+  print(paste("master g flat std dv", sd(masterGFlat)))
 }
-if (length(iFlatFiles) > 0){
-  print(paste("master i flat mean",mean(masterIFlat)))
-  print(paste("master i flat std dv",sd(masterIFlat)))
+if (length(iFlatFiles) > 0) {
+  print(paste("master i flat mean", mean(masterIFlat)))
+  print(paste("master i flat std dv", sd(masterIFlat)))
   masterIFlat <- flatFunction(iFlatFiles, 'i')
 }
-if (length(rFlatFiles) > 0){
+if (length(rFlatFiles) > 0) {
   masterRFlat <- flatFunction(rFlatFiles, 'r')
-  print(paste("master r flat mean",mean(masterRFlat)))
-  print(paste("master r flat std dv",sd(masterRFlat)))
+  print(paste("master r flat mean", mean(masterRFlat)))
+  print(paste("master r flat std dv", sd(masterRFlat)))
 }
-if (length(yFlatFiles) > 0){
+if (length(yFlatFiles) > 0) {
   masterYFlat <- flatFunction(yFlatFiles, 'Y')
-  print(paste("master Y flat mean",mean(masterYFlat)))
-  print(paste("master Y flat std dv",sd(masterYFlat)))
+  print(paste("master Y flat mean", mean(masterYFlat)))
+  print(paste("master Y flat std dv", sd(masterYFlat)))
 }
-if (length(zFlatFiles) > 0){
+if (length(zFlatFiles) > 0) {
   masterZFlat <- flatFunction(zFlatFiles, 'z')
-  print(paste("master z flat mean",mean(masterZFlat)))
-  print(paste("master z flat std dv",sd(masterZFlat)))
+  print(paste("master z flat mean", mean(masterZFlat)))
+  print(paste("master z flat std dv", sd(masterZFlat)))
 }
 remove(gFlatFiles, rFlatFiles, iFlatFiles, yFlatFiles, zFlatFiles)
 # Finished master flats
@@ -456,43 +549,39 @@ for (x in lightFiles) {
   if ((filter == "g''" ||
        filter == "gp") && exists("masterGFlat")) {
     masterFlat <- masterGFlat
-    comment <- ""
   } else if ((filter == "i''" ||
               filter == "ip") && exists("masterIFlat")) {
     masterFlat <- masterIFlat
-    comment <- ""
   } else if ((filter == "r''" ||
               filter == "rp") && exists("masterRFlat")) {
     masterFlat <- masterRFlat
-    comment <- ""
   } else if ((filter == "Y''" ||
               filter == "Yp") && exists("masterYFlat")) {
     masterFlat <- masterYFlat
-    comment <- ""
   } else if ((filter == "z''" ||
               filter == "zp") && exists("masterZFlat")) {
     masterFlat <- masterZFlat
-    comment <- ""
   } else {
-    comment <- "NONE"
     masterFlat <- array(1, dim = c(xNumber, yNumber))
   }
   
   # times = [needed exposure time, dark exposure time]
   # dark = closest dark frame
   expTime <- paste(times[[2]], ".", sep = "")
-  if (grepl("NoAutoDark", x)) {
+  if (grepl("NoAutoDark", x) || !length(exposureTimes)) {
     dark <- 0
   } else
     dark <- masterDarks[[which(exposureTimes == expTime)]]
   
   # don't scale for darks if scaled exp time mean(dark) < mad(bias)
-  if (mean(times[[1]] * dark / times[[2]]) < mad(bias)) dark <- 0
-    
+  if (is.null(times))
+    times <- c(0, 1)
+  if (mean(times[[1]] * dark / times[[2]]) < mad(masterBias))
+    dark <- 0
   calScience <-
     Y$imDat - masterBias - times[[1]] * dark / times[[2]]
   calScience <- calScience / masterFlat
-  fName <- writeCalScience(calScience, x, Y, comment)
+  fName <- writeCalScience(calScience, x, Y)
   print(paste("Wrote", counter, "of", count, "light files as", fName))
 }
 # write master images
@@ -521,7 +610,7 @@ if (exists('masterZFlat'))
 
 if (length(masterDarks)) {
   for (i in 1:length(masterDarks)) {
-    print(paste("Writing master dark of exposure time",exposureTimes[[i]]))
+    print(paste("Writing master dark of exposure time", exposureTimes[[i]]))
     s <-
       paste(as.numeric(exposureTimes[[i]]),
             '_sec_master_dark.fits',

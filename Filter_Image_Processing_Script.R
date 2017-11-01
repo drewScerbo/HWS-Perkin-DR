@@ -280,9 +280,9 @@ if (length(neededExposureTimes) || !length(darkFrameFiles)) {
         zz <- file(description = x, open = "rb")
         header <- readFITSheader(zz)
         hdr <- parseHdr(header)
-        exp <- hdr[which(hdr == "EXPTIME") + 1]
+        expTime <- hdr[which(hdr == "EXPTIME") + 1]
         s <- hdr[which(hdr == "IMAGETYP") + 1]
-        if (s == 'Dark Frame' && expTime == exp) {
+        if (s == 'Dark Frame' && expTime %in% neededExposureTimes ) {
           addedFrames <- TRUE
           darkFrameFiles[[length(darkFrameFiles) + 1]] <- x
           counter <- counter + 1

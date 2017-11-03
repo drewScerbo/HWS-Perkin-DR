@@ -331,7 +331,7 @@ if (FALSE %in% (lightFilters %in% flatFilters)) {
     for (dir in other_directories[[1]]) {
       neededFilters <- lightFilters[!lightFilters %in% flatFilters]
       
-      if (is.null(neededFilters))
+      if (is.null(neededFilters) || !length(neededFilters))
         break
       
       p2 <- file.path(dirname(script.dir), dir)
@@ -449,8 +449,6 @@ if (FALSE %in% (lightFilters %in% flatFilters)) {
 # of dark frames that share the same exposure time
 exposureTimeDarkFiles <-
   array(list(), dim = c(1, length(exposureTimes)))
-count <- length(darkFrameFiles)
-counter <- 0
 
 # sort dark frames by exposure time
 for (x in darkFrameFiles) {
@@ -458,7 +456,6 @@ for (x in darkFrameFiles) {
   header <- readFITSheader(zz)
   hdr <- parseHdr(header)
   exp <- hdr[which(hdr == "EXPTIME") + 1]
-  counter <- counter + 1
   i <- which(exposureTimes == exp)
   # add to the particular inner list that holds the same exposure time
   exposureTimeDarkFiles[[i]][[length(exposureTimeDarkFiles[[i]]) + 1]] <-
@@ -499,9 +496,9 @@ if (length(gFlatFiles) > 0) {
   print(paste("master g flat std dv", sd(masterGFlat)))
 }
 if (length(iFlatFiles) > 0) {
+  masterIFlat <- flatFunction(iFlatFiles, 'i')
   print(paste("master i flat mean", mean(masterIFlat)))
   print(paste("master i flat std dv", sd(masterIFlat)))
-  masterIFlat <- flatFunction(iFlatFiles, 'i')
 }
 if (length(rFlatFiles) > 0) {
   masterRFlat <- flatFunction(rFlatFiles, 'r')
@@ -523,9 +520,7 @@ remove(gFlatFiles, rFlatFiles, iFlatFiles, yFlatFiles, zFlatFiles)
 
 # apply the calibration images to each light image and
 # write out the modified image into subfolder 'modified images'
-options(warn = -1)
-dir.create(file.path(script.dir, 'modified images'))
-options(warn = 0)
+dir.create(file.path(script.dir, 'modified images'),showWarnings = FALSE)
 counter <- 0
 count <- length(lightFiles)
 for (x in lightFiles) {
@@ -590,10 +585,8 @@ for (x in lightFiles) {
 }
 
 # write master calibration images
-options(warn = -1)
 script.dir <- file.path(script.dir, 'calibration masters')
-options(warn = 0)
-dir.create(script.dir)
+dir.create(script.dir,showWarnings = FALSE)
 writeFITSim(masterBias,
             file = file.path(script.dir, "master_bias.fits"))
 print(paste("Writing master flats used"))

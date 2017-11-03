@@ -227,11 +227,9 @@ flatFunction <- function(f,filter) {
 # Writes the calibrated science frame in the given directory
 writeCalScience <- function (science, x, Y,darkUsed) {
   fName <- paste("mod_", basename(x), sep = '')
-  dirName <- file.path(dirname(x), 'modified images')
-  dir.create(dirName, showWarnings = FALSE)
   bzero <- Y$hdr[which(Y$hdr == "BZERO") + 1]
   bscale <- Y$hdr[which(Y$hdr == "BSCALE") + 1]
-  f <- file.path(dirName, fName)
+  f <- file.path(dirname(x), fName)
   header <- Y$header
   header <- addKwv("BSUBDIR",biasDirectory,"Directory bias frames are from",header=header)
   if (darkUsed > 0) {

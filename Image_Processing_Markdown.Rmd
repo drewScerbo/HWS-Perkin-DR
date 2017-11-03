@@ -1,7 +1,7 @@
 ---
 title: "Image Processing With R"
 author: "Drew Scerbo"
-date: "October 20, 2017"
+date: "November 3, 2017"
 output: html_document
 ---
 
@@ -24,11 +24,10 @@ Calibrating images requires all three types of correction images. Without any, t
 
 ## Code
 
-
 ### Set Up
-The main library to work with is the 'FITSio' package. It has the functions to open, see, and use the information stored in a .fits file. When running the calibration file ('Filter_Image_Processing_Script.R'), the functions script should be sourced first. 
+The main library to work with is the 'FITSio' package. It has the functions to open, see, and use the information stored in a '.fits' file. When running the calibration file 'Filter_Image_Processing_Script.R', the functions script, 'Image_Processing_Functions.R', should be sourced first. 
 
-```{r setup, include=TRUE}
+```{r setup, eval=FALSE}
 
 library(FITSio)
 source('Image_Processing_Functions.R')
@@ -36,9 +35,52 @@ source('Image_Processing_Functions.R')
 
 This sourcing creates all the functions that are to be used in the calibration file. The first few functions are about finding and sorting the right files. I'll show the function when it is in context.
 
-The first step requires getting and sorting all the files in the directory. The script, after being downloaded into the directory, will get the path to itself (also the path to the wanted directory) and use that to search for all the fits files. The script.dir can only be retrieved when the script is sourced rather than just run. That is why it is commented out.
+The first step requires getting and sorting all the files in the directory. The script, after being downloaded, will get the paths to itself and the working directory. The user must direct the program to where the images are being stored. It gives two options as a guess but will also take in other directories as well. 
 
-```{r include = FALSE}
+```{r, eval=FALSE}
+script.dir <- dirname(sys.frame(1)$ofile)
+
+print(paste("1.", script.dir))
+print(paste("2.", getwd()))
+print(paste("3. [will input path myself]"))
+p <- readline("Which path has the image files? [1,2,3] ")
+
+if (p == '2')
+  script.dir <- getwd()
+if (p == '3')
+  script.dir <- readline("What is the path to the directory? ")
+while (!file.exists(script.dir)) {
+  print(paste(script.dir, "doesn't exist"))
+  script.dir <- readline("What is the path to the directory? ")
+}
+```
+
+Next, the program has different ways of running. When there isn't enough of a certain type of file, it can either ask the user where some are or it can try to find some itself. This is stored in the 'interactive' variable. We have determined that there must be at least 5 bias frames, 1 dark frame (of reasonable exposure time), and 3 flat fields for each filter used. The other option is whether or not previously modified images should be overwritten. If new calibration images are included than the new images may be more accurate. On the other hand, calibrating and rewriting more images than needed is time consuming.
+
+```{r,eval=FALSE}
+interactive <-
+  readline(prompt = "Would you like an interactive run? [y/n] ")
+interactive <- ifelse(interactive == 'y', TRUE, FALSE)
+if (file.exists(file.path(script.dir, "modified images"))) {
+  overwrite <-
+    readline(prompt = "Would you like to overwrite already modified files? [y/n] ")
+  overwrite <- ifelse(overwrite == 'y', TRUE, FALSE)
+  if (overwrite) {
+    each_one <-
+      readline(prompt = "Would you like to choose to overwrite each modified file [y]
+               or just overwrite them all? [n] ")
+    each_one <- ifelse(each_one == 'y', TRUE, FALSE)
+  } else
+    each_one <- FALSE
+} else {
+  each_one <- FALSE
+  overwrite <- TRUE
+}
+```
+
+Once the script has the correct image directory and the program options are decided, it will then search for all the '.fits' files in that directory. This search finds all the '.fits' files that are in the 'script.dir' directory or in any sub folders. Throughout the script, many '.fits' files need to be sorted by certain attributes it has. All of these attributes are available in the header of the file. So, opening the header of a file is much easier (and faster) than opening the whole file with the header and image. 
+
+```{r include=FALSE}
 script.dir <- '/Users/drewScerbo/Desktop/ObservingImages/20170414'
 xNumber <- 3352
 yNumber <- 2532
@@ -61,8 +103,7 @@ flatFilters <- c()
 lightFilters <- c()
 ```
 
-```{r, include = TRUE}
-# script.dir <- dirname(sys.frame(1)$ofile)
+```{r, eval=FALSE}
 
 files <-
   list.files(
@@ -72,40 +113,71 @@ files <-
     recursive = TRUE
   )
 count <- length(files)
+
+if (!overwrite) {
+  for (x in files) {
+    if (grepl('mod_', basename(x)))
+      moddedFiles <-
+        c(moddedFiles, substr(basename(x), 5, nchar(basename(x))))
+  }
+}
 ```
 
-Once the files are retrieved. They need to be sorted. To do that, the header of each file is opened and the type of image (light, bias, dark, or flat) is stored. The actual image does not need to be opened until later. Just opening the header decreases the time needed to open the files, therefore decreasing the total time for sorting. Bias and dark frames are just stored into a list containing their files. Flat fields are sorted further by their filter. For light frames, the filter and exposure time are extracted and added to lists. These lists are used to determine whether more dark frames (same exposure time) or flat fields (same filter) are needed. 
+If the user does not want to overwrite images or select which ones will be overwritten, than the modified images must be found before. If 
 
-```{r, include = TRUE}
+Once the files are retrieved. They need to be sorted. To do that, the header of each file is opened and the type of image (light, bias, dark, or flat) is stored. The actual image does not need to be opened until later. Just opening the header decreases the time needed to open the files, therefore decreasing the total time for sorting. Bias and dark frames are just stored into a list containing their files. Flat fields are sorted further by their filter. For light frames, the filter and exposure time are extracted and added to lists. These lists are used to determine whether more dark frames (similar exposure time) or flat fields (same filter) are needed. 
+
+```{r, eval=FALSE}
 for (x in files) {
-  if (length(grep('mod_',basename(x))) > 0) {
+  if (grepl('mod_', basename(x)))
     next
+  if (grepl('calibration masters', x))
+    next
+  if (each_one && basename(x) %in% moddedFiles) {
+    each <- readline(prompt = paste("Overwrite? [y/n]", basename(x), ":"))
+    if (each == 'n')
+      next
   }
-  if (grepl('calibration masters',x)) next
-  zz <- file(description = x,open = "rb")
+  if (!overwrite && basename(x) %in% moddedFiles)
+    next
+  zz <- file(description = x, open = "rb")
   header <- readFITSheader(zz)
   hdr <- parseHdr(header)
   s <- hdr[which(hdr == "IMAGETYP") + 1]
   
+  if (hdr[which(hdr == "NAXIS1") + 1] != xNumber)
+    next
+  if (hdr[which(hdr == "NAXIS2") + 1] != yNumber)
+    next
+  
   if (s == "Bias Frame") {
+    # average all biases into a master bias field
     biasFrameFiles[[length(biasFrameFiles) + 1]] <- x
+    biasDirectory <- basename(script.dir)
     
   } else if (s == "Dark Frame") {
     darkFrameFiles[[length(darkFrameFiles) + 1]] <- x
+    darkDirectory <- basename(script.dir)
     
   } else if (s == "Flat Field") {
     filter <- hdr[which(hdr == "FILTER") + 1]
-    if (!is.element(filter,flatFilters)) flatFilters <- c(flatFilters,filter)
+    if (!is.element(filter, flatFilters))
+      flatFilters <- c(flatFilters, filter)
     if (filter == "g''" || filter == "gp") {
       gFlatFiles[[length(gFlatFiles) + 1]] <- x
+      gFlatDirectory <- basename(script.dir)
     } else if (filter == "i''" || filter == "ip") {
       iFlatFiles[[length(iFlatFiles) + 1]] <- x
+      iFlatDirectory <- basename(script.dir)
     } else if (filter == "r''" || filter == "rp") {
       rFlatFiles[[length(rFlatFiles) + 1]] <- x
+      rFlatDirectory <- basename(script.dir)
     } else if (filter == "Y''" || filter == "Yp") {
       yFlatFiles[[length(yFlatFiles) + 1]] <- x
+      yFlatDirectory <- basename(script.dir)
     } else if (filter == "z''" || filter == "zp") {
       zFlatFiles[[length(zFlatFiles) + 1]] <- x
+      zFlatDirectory <- basename(script.dir)
     } else {
       print("NO FILTER: file should have a filter")
       stopifnot(FALSE)
@@ -117,18 +189,162 @@ for (x in files) {
       neededExposureTimes[[length(neededExposureTimes) + 1]] <-
         expTime
     }
-    if (!is.element(filter,lightFilters)) lightFilters <- c(lightFilters,filter)
+    if (!is.element(filter, lightFilters))
+      lightFilters <- c(lightFilters, filter)
     lightFiles[[length(lightFiles) + 1]] <- x
   }
   close(zz)
 }
 ```
 
-If the file in question, above as 'x', is either a previously modified image or in a sub folder 'calibration masters', meaning it was also previously written by this script, then it is skipped. 
+If the file in question, above as 'x', is either a previously modified image or in a sub folder 'calibration masters', meaning it was also previously written by this script, then it is skipped. It is also skipped if it is not of the typical dimension size (3352 by 2532).
 
-Once the files are sorted, the other directories that are at the same level are found and ordered. This process uses two functions from the other script; compare_dates and sort_files. 
+#### Interactive Mode
 
-```{r, include=TRUE}
+Once the files are sorted, the minimum requirements are checked. If there are not enough bias frames (at least 5) then more are asked for. A directory path to a folder containing more bias frames is requested and checked if it exists. This process is similar to the original files retrieved above but this is just looking for bias frames. Out of all of the interactive file retrieving this is the easiest because bias frames have no other important attributes. 
+
+```{r,eval=FALSE}
+if (length(biasFrameFiles) < 5) {
+  p2 <-
+    readline(prompt = "Enter a file path for bias Frames: ")
+  while (!file.exists(p2)) {
+    print(paste(p2, "doesn't exist"))
+    p2 <-
+      readline(prompt = "Enter a file path for bias Frames: ")
+  }
+  
+  files <-
+    list.files(
+      path = p2,
+      pattern = "*.fits",
+      full.names = T,
+      recursive = TRUE
+    )
+  for (x in files) {
+    zz <- file(description = x, open = "rb")
+    header <- readFITSheader(zz)
+    hdr <- parseHdr(header)
+    s <- hdr[which(hdr == "IMAGETYP") + 1]
+    
+    if (s == "Bias Frame") {
+      biasDirectory <- c(biasDirectory, basename(p2))
+      biasFrameFiles[[length(biasFrameFiles) + 1]] <- x
+    }
+  }
+}
+```
+
+After bias frames, dark frames are asked for. There needs to be at least one dark frame, preferably of an exposure time the same or similar to the exposure times of the light frames. The 'neededExposureTimes' are the exposure times that light frames have but there is no dark frame with the same exposure time. However, when the needed exposure times are small, particularly when the standard deviation is less than the mean value, the dark frames are useless. An typical dark frame of exposure time 60 seconds might have a mean value of 12. A dark with exposure time 10 seconds or less will be have a mean value of less than 2. This correction is not worth the effort. This loop will extract all of the bias frames that have a needed exposure time. 
+
+```{r,eval=FALSE}
+for (exp in neededExposureTimes) {
+  if (as.numeric(exp) < 30)
+    neededExposureTimes <-
+      neededExposureTimes[neededExposureTimes != exp]
+}
+
+if (length(neededExposureTimes) || !length(darkFrameFiles)) {
+  for (exp in neededExposureTimes) {
+    question <- "Enter a file path for darks with exposure time '"
+    p2 <-
+      readline(prompt = paste(question, exp, "':", sep = ''))
+    while (!file.exists(p2)) {
+    print(paste(p2, "doesn't exist"))
+    p2 <-
+      readline(prompt = paste(question, exp, "':", sep = ''))
+    }
+    files <-
+      list.files(
+        path = p2,
+        pattern = "*.fits",
+        full.names = T,
+        recursive = TRUE
+      )
+    
+    addedFrames <- FALSE
+    counter <- 0
+    for (x in files) {
+      zz <- file(description = x, open = "rb")
+      header <- readFITSheader(zz)
+      hdr <- parseHdr(header)
+      expTime <- hdr[which(hdr == "EXPTIME") + 1]
+      s <- hdr[which(hdr == "IMAGETYP") + 1]
+      if (s == 'Dark Frame' && expTime %in% neededExposureTimes) {
+        addedFrames <- TRUE
+        darkFrameFiles[[length(darkFrameFiles) + 1]] <- x
+        counter <- counter + 1
+        darkDirectory <- c(darkDirectory, basename(p2))
+      }
+      close(zz)
+    }
+    if (addedFrames) {
+      neededExposureTimes[[which(neededExposureTimes == exp)]] <- NULL
+    }
+  }
+}
+```
+
+Finally, the any needed flats are asked for. A flat field is needed in each filter that there is a light image in. For each filter, there should be at least 3 flat fields. This code chunk makes use of the %in% operator. It will track all the filters that there are flat fields for and what filters there are light images for. 
+
+```{r eval=FALSE}
+if (FALSE %in% (lightFilters %in% flatFilters)) {
+  for (dir in other_directories[[1]]) {
+    neededFilters <- lightFilters[!lightFilters %in% flatFilters]
+    
+    if (is.null(neededFilters) || !length(neededFilters))
+      break
+    
+    p2 <- file.path(dirname(script.dir), dir)
+    flatFiles <-
+      get_files_of_type(p2, 'Flat Field', neededFilters)
+    
+    gFlatFiles <- append(gFlatFiles, flatFiles[[1]])
+    iFlatFiles <- append(iFlatFiles, flatFiles[[2]])
+    rFlatFiles <- append(rFlatFiles, flatFiles[[3]])
+    yFlatFiles <- append(yFlatFiles, flatFiles[[4]])
+    zFlatFiles <- append(zFlatFiles, flatFiles[[5]])
+    
+    if (length(flatFiles[[1]])) {
+      gFlatDirectory <- c(gFlatDirectory, basename(p2))
+    }
+    if (length(flatFiles[[2]])) {
+      iFlatDirectory <- c(iFlatDirectory, basename(p2))
+    }
+    if (length(flatFiles[[3]])) {
+      rFlatDirectory <- c(rFlatDirectory, basename(p2))
+    }
+    if (length(flatFiles[[4]])) {
+      yFlatDirectory <- c(yFlatDirectory, basename(p2))
+    }
+    if (length(flatFiles[[5]])) {
+      zFlatDirectory <- c(zFlatDirectory, basename(p2))
+    }
+    
+    flatFilters <- c()
+    if (length(gFlatFiles) > 2) {
+      flatFilters <- c(flatFilters, "g''", "gp")
+    }
+    if (length(iFlatFiles) > 2) {
+      flatFilters <- c(flatFilters, "i''", "ip")
+    }
+    if (length(rFlatFiles) > 2) {
+      flatFilters <- c(flatFilters, "r''", "rp")
+    }
+    if (length(yFlatFiles) > 2) {
+      flatFilters <- c(flatFilters, "Y''", "Yp")
+    }
+    if (length(zFlatFiles) > 2) {
+      flatFilters <- c(flatFilters, "z''", "zp")
+    }
+  }
+}
+```
+
+#### Non-Interactive Mode
+
+Non-interactive mode is much more intense as it requires more work from the program. Once the files are sorted, the other directories that are at the same level are found and ordered. This process uses two functions from the other script; compare_dates and sort_files. 
+
+```{r, eval=FALSE}
 original <- basename(script.dir)
 other_directories = list.dirs(dirname(script.dir),recursive = FALSE)
 other_directories = lapply(other_directories,basename)
@@ -138,7 +354,7 @@ other_directories <- sort_files(other_directories,original)
 
 The function below uses the built in Date class to return the difference, in days, between two directories. The directories given are in the format of 'YYYYMMDD' so there is some modifying needed. This is used to order the other directories chronologically closest to the directory in question. 
 
-```{r, include = TRUE}
+```{r, eval=FALSE}
 compare_dates <- function(dir1, dir2) {
   dir1 <- paste(strtoi(substr(dir1, 1, 4)),
                 strtoi(substr(dir1, 5, 6)),
@@ -155,9 +371,9 @@ compare_dates <- function(dir1, dir2) {
 }
 ```
 
-The next function, below, uses the compare_dates function to first, compute the difference of days from the original, and second, order the directories by that difference. It returns a data frame, in order, with the basenames of the directories and their corresponding difference. 
+The next function, below, uses the compare_dates function to first, compute the difference of days from the original, and second, order the directories by that difference. It returns a data frame, in order, with the base names of the directories and their corresponding difference. 
 
-```{r, include=TRUE}
+```{r, eval=FALSE}
 sort_files <- function(basenames, original) {
   differences <- c()
   files2 <- c()
@@ -175,13 +391,27 @@ sort_files <- function(basenames, original) {
 }
 ```
 
-Once the directories are ordered, there is a check to see if there is enough bias frames. A function is run on each nearby directory, in order, to search for bias frames. This process uses the get_files_of_type function which will get all of either the bias frames or the flat fields in a given directory. Bias frames are added to a list and returned. If a flat field is needed, the filters that are needed (same filters as the light frames) are given and check against. 
+Once the directories are ordered, there is a check to see if there is enough bias frames. A function is run on each nearby directory, in order, to search for bias frames. 
 
-``` {r, include = TRUE}
+The function, get_files_of_type, checks the given directory for images of the given type (flat field or bias). This process uses the get_files_of_type function which will get all of either the bias frames or the flat fields in a given directory. Bias frames are added to a list and returned. If a flat field is needed, the filters that are needed (the filters of the light frames) are given and checked against.
+
+``` {r, eval=FALSE}
 get_files_of_type <- function(p.dir, type, filters) {
   if (!file.exists(p.dir)) {
     return(list())
   }
+  new_files <-
+    list.files(
+      path = p.dir,
+      pattern = "*.fits",
+      full.names = T,
+      recursive = TRUE
+    )
+  counter <- 0
+  modCounter <- 0
+  fileCounter <- 0
+  count <- length(new_files)
+  fileList <- list()
   
   if (type == 'Flat Field') {
     gFiles <- list()
@@ -191,17 +421,13 @@ get_files_of_type <- function(p.dir, type, filters) {
     zFiles <- list()
     flatFieldFilters <-
       list(gFiles, iFiles, rFiles, yFiles, zFiles)
+    flatCounter <- c(0,0,0,0,0)
   }
   
-  new_files <-
-    list.files(
-      path = p.dir,
-      pattern = "*.fits",
-      full.names = T,
-      recursive = TRUE
-    )
-  
   for (x in new_files) {
+    
+    if (grepl('mod_', basename(x))) next
+    if (grepl('calibration masters', x)) next
     
     zz <- file(description = x, open = "rb")
     header <- readFITSheader(zz)
@@ -243,63 +469,341 @@ get_files_of_type <- function(p.dir, type, filters) {
 }
 ```
 
-Once enough (at least 3) bias frames are found, they are averaged together to create a master bias frame. Flat fields will continue to run until their are at least 3 fields from each filter needed. This is done by giving a filter vector to the get_files_of_type function and then reevaluating which filter are needed each iteration. 
+First, this function is used to find bias files in nearby directories. Once 5 bias frames are found, with their directories stored, the loop ends. 
 
-```{r, include=TRUE}
-if (length(biasFrameFiles) <= 2) {
+```{r eval=FALSE}
+if (!interactive && length(biasFrameFiles) < 5) {
   biasCounter <- 0
-  for (dir in other_directories[[1]]){
-    p2 <- file.path(dirname(script.dir),dir)
-    biasFiles <- get_files_of_type(p2,'Bias Frame',NULL)
-    for (x in biasFiles){
-      Y <- readFITS(x)
-      masterBias <- masterBias + Y$imDat 
-      biasCounter <- biasCounter + 1
-      close(x)
-    }
-    if (biasCounter > 2) break
+  for (dir in other_directories[[1]]) {
+    p2 <- file.path(dirname(script.dir), dir)
+    biasFiles <- get_files_of_type(p2, 'Bias Frame', NULL)
+    biasCounter <- biasCounter + length(biasFiles)
+    biasFrameFiles <- append(biasFrameFiles, biasFiles)
+    if (length(biasFiles))
+      biasDirectory <- c(biasDirectory, basename(p2))
+    if (biasCounter > 4)
+      break
   }
 }
+```
 
-for (x in biasFrameFiles){
-  counter <- counter + 1
+The same function, get_files_of_type can be used to find flat fields. They will continue to be searched for until there are at least 3 fields in each filter needed or no more directories to search in. This is done by giving a filter vector of the needed filters to the get_files_of_type function and then reevaluating which filter are needed each iteration. The neededFilters vector contains filters that light frames have but there is no associated flat field. 
+
+```{r eval=FALSE}
+if (!interactive) {
+  for (dir in other_directories[[1]]) {
+    neededFilters <- lightFilters[!lightFilters %in% flatFilters]
+    
+    if (is.null(neededFilters))
+      break
+    
+    p2 <- file.path(dirname(script.dir), dir)
+    flatFiles <-
+      get_files_of_type(p2, 'Flat Field', neededFilters)
+    
+    gFlatFiles <- append(gFlatFiles, flatFiles[[1]])
+    iFlatFiles <- append(iFlatFiles, flatFiles[[2]])
+    rFlatFiles <- append(rFlatFiles, flatFiles[[3]])
+    yFlatFiles <- append(yFlatFiles, flatFiles[[4]])
+    zFlatFiles <- append(zFlatFiles, flatFiles[[5]])
+    
+    if (length(flatFiles[[1]])) {
+      gFlatDirectory <- c(gFlatDirectory, basename(p2))
+    }
+    if (length(flatFiles[[2]])) {
+      iFlatDirectory <- c(iFlatDirectory, basename(p2))
+    }
+    if (length(flatFiles[[3]])) {
+      rFlatDirectory <- c(rFlatDirectory, basename(p2))
+    }
+    if (length(flatFiles[[4]])) {
+      yFlatDirectory <- c(yFlatDirectory, basename(p2))
+    }
+    if (length(flatFiles[[5]])) {
+      zFlatDirectory <- c(zFlatDirectory, basename(p2))
+    }
+    
+    flatFilters <- c()
+    if (length(gFlatFiles) > 2) {
+      flatFilters <- c(flatFilters, "g''", "gp")
+    }
+    if (length(iFlatFiles) > 2) {
+      flatFilters <- c(flatFilters, "i''", "ip")
+    }
+    if (length(rFlatFiles) > 2) {
+      flatFilters <- c(flatFilters, "r''", "rp")
+    }
+    if (length(yFlatFiles) > 2) {
+      flatFilters <- c(flatFilters, "Y''", "Yp")
+    }
+    if (length(zFlatFiles) > 2) {
+      flatFilters <- c(flatFilters, "z''", "zp")
+    }
+  }
+}
+```
+
+#### Creating Masters
+
+Once enough (at least 5) bias frames are found, they are averaged together to create a master bias frame. This is just a simple average to create an array where each element is the average of that pixel. If there were no bias frames found then an array of zero's is created. 
+
+```{r, eval=FALSE}
+for (x in biasFrameFiles) {
   Y <- readFITS(x)
   masterBias <- masterBias + Y$imDat
 }
 if (length(biasFrameFiles) > 0) {
   masterBias <- masterBias / length(biasFrameFiles)
   remove(biasFrameFiles)
-} 
+} else
+  masterBias <- array(0, dim = c(xNumber, yNumber))
+```
 
-if (length(flatFilters) < length(lightFilters)) {
-  for (dir in other_directories[[1]]){
-    neededFilters <- c()
-    for (f in lightFilters){
-      if (!is.element(f,flatFilters)) {neededFilters <- c(neededFilters,f)}
-    }
-    if (is.null(neededFilters)) break
-    p2 <- file.path(dirname(script.dir),dir)
-    flatFiles <- get_files_of_type(p2,'Flat Field',neededFilters)
-    gFlatFiles <- append(gFlatFiles,flatFiles[[1]])
-    iFlatFiles <- append(iFlatFiles,flatFiles[[2]])
-    rFlatFiles <- append(rFlatFiles,flatFiles[[3]])
-    yFlatFiles <- append(yFlatFiles,flatFiles[[4]])
-    zFlatFiles <- append(zFlatFiles,flatFiles[[5]])
-    flatFilters <- c()
-    if (length(gFlatFiles) > 2) flatFilters <- c(flatFilters,"g''","gp")
-    if (length(iFlatFiles) > 2) flatFilters <- c(flatFilters,"i''","ip")
-    if (length(rFlatFiles) > 2) flatFilters <- c(flatFilters,"r''","rp")
-    if (length(yFlatFiles) > 2) flatFilters <- c(flatFilters,"Y''","Yp")
-    if (length(zFlatFiles) > 2) flatFilters <- c(flatFilters,"z''","zp")
-  }
+Creating a master dark is a trickier in that there is a master dark for each exposure time. So, the dark frames need to be sorted by exposure time. This program uses an array or list of lists format to do so. An array is created with the same amount of columns as there are exposure times and each element is an empty list. Then, for each dark frame, the file goes into the inner list that is associated with it's own exposure time. 
+
+```{r,eval=FALSE}
+exposureTimeDarkFiles <-
+  array(list(), dim = c(1, length(exposureTimes)))
+
+for (x in darkFrameFiles) {
+  zz <- file(description = x, open = "rb")
+  header <- readFITSheader(zz)
+  hdr <- parseHdr(header)
+  exp <- hdr[which(hdr == "EXPTIME") + 1]
+  i <- which(exposureTimes == exp)
+  # add to the particular inner list that holds the same exposure time
+  exposureTimeDarkFiles[[i]][[length(exposureTimeDarkFiles[[i]]) + 1]] <-
+    x
+  close(zz)
 }
 ```
 
+Once the dark files are sorted by exposure time, they are averaged using the darkCounter function. The function takes a list of files, all of the dark frames of an exposure time, and averages them. Each frame is also master bias-subtracted and then averaged.
+
+```{r,eval=FALSE}
+darkCounter <- function(files) {
+  masterDark <-
+    array(0, dim = c(xNumber, yNumber))
+  for (count in 1:length(files)) {
+    counter <- counter + 1
+    Y <- readFITS(x)
+    masterDark <- masterDark + Y$imDat - masterBias
+  }
+  masterDark <- masterDark / counter
+  return(masterDark)
+}
+```
+
+This will create a master dark frame for each exposure time. The exposure times will be the same or similar to one in a light frames. That way, the dark frames can be scaled if there aren't any of the same exposure time. 
+
+```{r,eval=FALSE}
+masterDarks <- list()
+count <- length(exposureTimeDarkFiles)
+if (length(exposureTimeDarkFiles)) {
+  for (i in 1:length(exposureTimeDarkFiles)) {
+    masterDarks[[length(masterDarks) + 1]] <-
+      darkCounter(exposureTimeDarkFiles[[i]])
+  }
+} else
+  print("Found no darks of a needed exposure time")
+```
+
+Finally, flat fields are averaged for each filter. The function used is 'flatFunction' and takes in a list of all of the flat field files of the given filter. Each flat field is master bias-subtracted and then normalized (divided by the average of that field). These normalized, bias-subtracted, images are then averaged into the master flat for the given filter.
+
+```{r,eval=FALSE}
+flatFunction <- function(f,filter) {
+  masterFlat <- array(0, dim = c(xNumber, yNumber))
+  flatCounter <- 0
+  for (file in f) {
+    Y <- readFITS(file)
+    img <- Y$imDat
+    
+    # normalize the image
+    avg <- mean(img - masterBias)
+    masterFlat <- masterFlat + ((img - masterBias) / avg)
+    flatCounter <- flatCounter + 1
+  }
+  
+  if (is.nan(masterFlat[xNumber / 2, yNumber / 2]))
+    return(NULL)
+  else
+    return(masterFlat / flatCounter)
+}
+```
+
+```{r,include=FALSE,eval=FALSE}
+# Master flats are only created if there are enough flat fields in the filter.
+if (length(gFlatFiles) > 0) {
+  masterGFlat <- flatFunction(gFlatFiles, 'g')
+}
+if (length(iFlatFiles) > 0) {
+  masterIFlat <- flatFunction(iFlatFiles, 'i')
+}
+if (length(rFlatFiles) > 0) {
+  masterRFlat <- flatFunction(rFlatFiles, 'r')
+}
+if (length(yFlatFiles) > 0) {
+  masterYFlat <- flatFunction(yFlatFiles, 'Y')
+}
+if (length(zFlatFiles) > 0) {
+  masterZFlat <- flatFunction(zFlatFiles, 'z')
+}
+remove(gFlatFiles, rFlatFiles, iFlatFiles, yFlatFiles, zFlatFiles)
+```
 
 
+### Calibration Process
 
-## Calibration Process
-Dark subtraction only occurs when mean of scaled dark is less than the median absolute deviation of the master bias. This is to prevent when the scaled dark has negative values that would add instead of subtract noise to the light image.
+Once all of the files are sorted and the calibration images are used to create the master calibration images, the light images can be corrected. This process will, for each light frame; find the correct master bias, dark, and flat frames, create a corrected, modified image, and then write the modified image back into the original directory.
+
+First, all modified images will be written back into a created sub-directory called 'modified images'. The master frames are also written back into a created sub-directory. This way, the corrections on the modified images can be seen and analyzed. This sub-directory is called 'calibration masters'.
+
+```{r,eval=FALSE}
+dir.create(file.path(script.dir, 'modified images'),showWarnings = FALSE)
+dir.create(file.path(script.dir, 'calibration masters'),showWarnings = FALSE)
+```
+
+The following code chunks are all used for each light frame.
+
+The master dark frame used will be the dark frame with the closest exposure time to the particular light frame. The two exposure times will also be used in the scaling of the dark frame. 
+
+```{r,eval=FALSE}
+for (x in lightFiles) {
+  counter <- counter + 1
+  Y <- readFITS(x)
+  expTime <- Y$hdr[which(Y$hdr == "EXPTIME") + 1]
+  difference <- .Machine$integer.max
+  times <- c()
+  a <- as.numeric(expTime)
+  for (y in exposureTimes) {
+    b <- strtoi(substr(y, 1, nchar(y) - 1))
+    diff <- abs(a - b)
+    if (diff < difference) {
+      difference <- diff
+      times <- c(a, b)
+    }
+  }
+  
+  expTime <- paste(times[[2]], ".", sep = "")
+  if (grepl("NoAutoDark", x) || !length(exposureTimes)) {
+    dark <- 0
+  } else {
+    i <- which(exposureTimes == expTime)
+    dark <- masterDarks[[i]]
+  }
+  
+  # don't scale for darks if scaled exp time mean(dark) < mad(bias)
+  if (is.null(times))
+    times <- c(0, 1)
+  if (mean(times[[1]] * dark / times[[2]]) < mad(masterBias)){
+    dark <- 0
+    i <- -1
+  }
+  
+  ...
+```
+
+Dark subtraction only occurs when mean of scaled dark is less than the median absolute deviation of the master bias. This is to prevent when the scaled dark has negative values that would add, instead of subtract, noise to the light image. If there is no dark frame, or the mean of the dark is greater than the mad of the masterBias then the light frame is not dark subtracted.
+
+The master flat field is the flat field that has the same filter as the light frame. If there is no flat field then the an array of 1's is used. 
+
+```{r,eval=FALSE}
+  ...
+
+  filter <- Y$hdr[which(Y$hdr == "FILTER") + 1]
+    
+  # find the corresponding master flat field
+  if ((filter == "g''" ||
+       filter == "gp") && exists("masterGFlat")) {
+    masterFlat <- masterGFlat
+  } else if ((filter == "i''" ||
+              filter == "ip") && exists("masterIFlat")) {
+    masterFlat <- masterIFlat
+  } else if ((filter == "r''" ||
+              filter == "rp") && exists("masterRFlat")) {
+    masterFlat <- masterRFlat
+  } else if ((filter == "Y''" ||
+              filter == "Yp") && exists("masterYFlat")) {
+    masterFlat <- masterYFlat
+  } else if ((filter == "z''" ||
+              filter == "zp") && exists("masterZFlat")) {
+    masterFlat <- masterZFlat
+  } else {
+    masterFlat <- array(1, dim = c(xNumber, yNumber))
+  }
+  
+ ...
+```
+
+Finally, the light frame is calibrated. The image is subtracted by the bias and the scaled master dark. It is then divided over the normalized flat field.
+
+```{r,eval=FALSE}
+  ...
+
+  calScience <-
+      Y$imDat - masterBias - times[[1]] * dark / times[[2]]
+    calScience <- calScience / masterFlat
+    fName <- writeCalScience(calScience, x, Y,i)
+} # end of for loop
+```
+
+The 'writeCalScience' function takes in the calibrated image, the full path of the original file, the FITS file already read in, and the index of the exposure time of the dark. Using these, it creates a modified file name (the same file name but with 'mod_' in front of it) and inserts the calibrated images into the header. Earlier in the script, the directories of where all the calibrated images used to create the masters was stored. They are then written into the header with the type of calibration they are. 
+
+```{r,eval=FALSE}
+writeCalScience <- function (science, x, Y,darkUsed) {
+  fName <- paste("mod_", basename(x), sep = '')
+  bzero <- Y$hdr[which(Y$hdr == "BZERO") + 1]
+  bscale <- Y$hdr[which(Y$hdr == "BSCALE") + 1]
+  f <- file.path(dirname(x), fName)
+  header <- Y$header
+  header <- addKwv("BSUBDIR",biasDirectory,"Directory bias frames are from",header=header)
+  if (darkUsed > 0) {
+    header <- addKwv("DSUBDIR",exposureTimes[[darkUsed]],darkDirectory[[darkUsed]],header=header)
+  } else {
+    header <- addKwv("DSUBDIR","NONE",header=header)
+  }
+  filter <- get_filter_index(Y$hdr[which(Y$hdr == "FILTER") + 1])
+  if (filter == 1){
+    if (exists("masterGFlat")) {
+      dir <- basename(gFlatDirectory)
+      header <- addKwv("FLATDIR","g''",dir,header=header)
+    } else header <- addKwv("FLATDIR","g''","NONE",header=header)
+  }
+  if (filter == 2){
+    if (exists("masterIFlat")) {
+      dir <- basename(iFlatDirectory)
+      header <- addKwv("FLATDIR","i''",dir,header=header)
+    } else header <- addKwv("FLATDIR","i''","NONE",header=header)
+  }
+  if (filter == 3){
+    if (exists("masterRFlat")) {
+      dir <- basename(rFlatDirectory)
+      header <- addKwv("FLATDIR","r''",dir,header=header)
+    } else header <- addKwv("FLATDIR","r''","NONE",header=header)
+  }
+  if (filter == 4){
+    if (exists("masterYFlat")) {
+      dir <- basename(yFlatDirectory)
+      header <- addKwv("FLATDIR","Y''",dir,header=header)
+    } else header <- addKwv("FLATDIR","Y''","NONE",header=header)
+  }
+  if (filter == 5){
+    if (exists("masterZFlat")) {
+      dir <- basename(zFlatDirectory)
+      header <- addKwv("FLATDIR","z''",dir,header=header)
+    } else header <- addKwv("FLATDIR","z''","NONE",header=header)
+  }
+  
+  writeFITSim(
+    calScience,
+    file = f,
+    axDat = Y$axDat,
+    header = header,
+    bscale = strtoi(bscale)
+  )
+  return(fName)
+}
+```
 
 ## Instructions
 Instructions for students to run these programs:

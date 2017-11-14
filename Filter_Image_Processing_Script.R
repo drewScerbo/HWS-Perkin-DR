@@ -13,7 +13,6 @@ print(paste("1.", script.dir))
 print(paste("2.", getwd()))
 print(paste("3. [will input path myself]"))
 p <- readline("Which path has the image files? [1,2,3] ")
-
 if (p == '2')
   script.dir <- getwd()
 if (p == '3')

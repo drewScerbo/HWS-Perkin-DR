@@ -229,7 +229,7 @@ writeCalScience <- function (science, x, Y,darkUsed) {
   fName <- paste("mod_", basename(x), sep = '')
   bzero <- Y$hdr[which(Y$hdr == "BZERO") + 1]
   bscale <- Y$hdr[which(Y$hdr == "BSCALE") + 1]
-  f <- file.path(dirname(x), fName)
+  f <- file.path(script.dir, 'modified images', fName)
   header <- Y$header
   header <- addKwv("BSUBDIR",biasDirectory,"Directory bias frames are from",header=header)
   if (darkUsed > 0) {

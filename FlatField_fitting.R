@@ -46,28 +46,26 @@ for (i in length(masterFlats):1) {
   }
 }
 
-dev.new()
 histOfFlats <- list()
-histOfFlats[[1]] <- hist(
-  masterFlats[[1]],
-  col = colors[[1]],
-  xlim = c(.9, 1.1),
-  main = "Master Flats",
-  breaks = 200,
-  freq = TRUE
-)
+# histOfFlats[[1]] <- hist(
+#   masterFlats[[1]],
+#   col = colors[[1]],
+#   xlim = c(.9, 1.1),
+#   main = "Master Flats",
+#   breaks = 200,
+#   freq = TRUE,
+#   plot = FALSE
+# )
 
-for (i in 2:length(masterFlats)) {
+for (i in 1:length(masterFlats)) {
   histOfFlats[[i]] <- hist(
     masterFlats[[i]],
     col = colors[[i]],
     breaks = 200,
     freq = TRUE,
-    add = T
+    plot = FALSE
   )
-  print(paste("added",i))
 }
-dev.off()
 
 ymax <- 0
 for (i in 1:length(histOfFlats)) {
@@ -96,7 +94,7 @@ for (i in 2:length(masterFlats)) {
     add = T
   )
 }
-length(histOfFlats)
+
 legend("topright",
        c(unlist(scienceFrameFilters)),
        col = c(unlist(colors)),

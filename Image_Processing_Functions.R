@@ -7,17 +7,8 @@
 # return < 0 if dir2 came first
 # return 0 otherwise
 compare_dates <- function(dir1, dir2) {
-  dir1 <- paste(strtoi(substr(dir1, 1, 4)),
-                strtoi(substr(dir1, 5, 6)),
-                strtoi(substr(dir1, 7, 8)),
-                sep = '-')
-  d1 <- as.Date(dir1, "%Y-%m-%d")
-  
-  dir2 <- paste(strtoi(substr(dir2, 1, 4)),
-                strtoi(substr(dir2, 5, 6)),
-                strtoi(substr(dir2, 7, 8)),
-                sep = '-')
-  d2 <- as.Date(dir2, "%Y-%m-%d")
+  d1 <- as.Date(dir1, "%Y%m%d")
+  d2 <- as.Date(dir2, "%Y%m%d")
   return(as.numeric(d1 - d2))
 }
 
@@ -28,7 +19,6 @@ sort_files <- function(basenames, original) {
   files2 <- c()
   for (f in basenames) {
     comp <- compare_dates(f, original)
-    
     if (!is.na(comp)) {
       differences <- c(differences, abs(as.numeric(comp)))
       files2 <- c(files2, f)

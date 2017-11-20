@@ -1,6 +1,8 @@
 # FlatField fitting to a histogram
 # Must run Filter_Image_Processing_Script.R to get masterflats
 
+xNumber <- 3352
+yNumber <- 2532
 colors <- list()
 scienceFrameFilters <- list()
 masterFlats <- list()
@@ -47,15 +49,6 @@ for (i in length(masterFlats):1) {
 }
 
 histOfFlats <- list()
-# histOfFlats[[1]] <- hist(
-#   masterFlats[[1]],
-#   col = colors[[1]],
-#   xlim = c(.9, 1.1),
-#   main = "Master Flats",
-#   breaks = 200,
-#   freq = TRUE,
-#   plot = FALSE
-# )
 
 for (i in 1:length(masterFlats)) {
   histOfFlats[[i]] <- hist(
@@ -102,10 +95,10 @@ legend("topright",
 
 percentageOut <- list()
 
-script.dir <- dirname(sys.frame(1)$ofile)
+# script.dir <- dirname(sys.frame(1)$ofile)
 
 file.create(file.path(script.dir, "FlatFieldSummary.txt"))
-fileSummary <- file.path(script.dir, "FlatFieldSummary.txt", sep = "")
+fileSummary <- file.path(script.dir, "FlatFieldSummary.txt")
 titles <- c("Min:", "1st Q:", "Med:", "Mean:", "3rd Q:", "Max:")
 lines <- "FlatFlield Summary:\n"
 
@@ -120,7 +113,8 @@ for (i in 1:length(masterFlats)) {
   count <- sum(unlist(histOfFlats[[i]]$counts[indexes]))
   percentageOut[[length(percentageOut) + 1]] <- count / total
   
-  indexes <- which(histOfFlats[[i]]$mids > 1.1)
+  indexes <- 
+    which(histOfFlats[[i]]$mids > 1.1)
   count <- sum(unlist(histOfFlats[[i]]$counts[indexes]))
   percentageOut[[length(percentageOut) + 1]] <- count / total
   
@@ -162,7 +156,6 @@ for (i in 1:length(masterFlats)) {
   )
 }
 writeLines(lines, con = fileSummary)
-close(fileSummary)
 
 f <- function(par,i) {
   m1 <- par[1]
@@ -176,7 +169,8 @@ f <- function(par,i) {
   modelY <- k1 * exp(-0.5 * ((x - m1) / sd1) ^ 2)
   modelY <- modelY + k2 * exp(-0.5 * ((x - m2) / sd2) ^ 2)
   
-  plot(x, y, xlim = c(.8, 1.2),main = scienceFrameFilters[[i]])
+  plot(x, y, xlim = c(.8, 1.2),main = scienceFrameFilters[[i]],
+       xlab='Normalized Value',ylab='Frequency')
   lines(x, modelY, col = 'red')
   return(modelY)
 }
@@ -195,7 +189,7 @@ f2 <- function(par) {
   sum((y - modelY) ^ 2)
 }
 
-remove(masterFlats)
+# remove(masterFlats)
 
 x <- histOfFlats[[1]]$mids
 y <- histOfFlats[[1]]$counts

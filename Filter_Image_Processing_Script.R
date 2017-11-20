@@ -479,8 +479,8 @@ if (length(exposureTimes)) {
     print(paste(
       "Master Dark of ",
       exposureTimes[[i]],
-      "mean",
-      mean(masterDarks[[i]])
+      "median",
+      median(masterDarks[[i]])
     ))
     print(paste("Master Dark of ", exposureTimes[[i]], "std dv", sd(masterDarks[[i]])))
   }
@@ -616,9 +616,9 @@ if (length(masterDarks)) {
   }
 }
 remove(a,b,count,counter,diff,difference,
-       exp,exposureTimes,expTime,filter,i,
+       exp,expTime,filter,i,
        modCounter,s,times,x,y,comment,
-       fName,script.dir,Y,dark,neededExposureTimes,
+       fName,Y,dark,neededExposureTimes,
        calScience,exposureTimeDarkFiles,
        neededFilters,lightFiles,zz,lightFilters,
        p2,original,xNumber,yNumber,p,

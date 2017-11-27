@@ -2,9 +2,6 @@
 # Author Andrew Scerbo
 # October 22, 2017
 
-### NOTES
-# add to header: dir found cal images in
-
 # install.packages("FITSio")
 library(FITSio)
 script.dir <- dirname(sys.frame(1)$ofile)

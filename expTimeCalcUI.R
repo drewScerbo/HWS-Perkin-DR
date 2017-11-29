@@ -26,8 +26,8 @@ ui <- fluidPage(
           "S/N:",
           0,
           min = 0,
-          max = 100,
-          step = 1,
+          max = 10000,
+          step = 10,
           width = "100px"
         )
       ),
@@ -107,7 +107,7 @@ ui <- fluidPage(
     fluidRow(
       column(3),
       column(2, strong("S/N: ")),
-      column(2, strong("Magnitue: ")),
+      column(2, strong("Magnitude: ")),
       column(2, strong("Exp Time: ")),
       column(2, strong("PkDN: "))
     ),
@@ -143,23 +143,28 @@ server <- function(input, output) {
     gain <- 0.37
     npix <- pi*100
     # p_b <- pi*(30^2 - 20^2)
-    p_b <- 3352 * 2532
+    p_b <- 3352 * 2532 # we used the whole image as the background rate
     a_b <- 1 + npix/p_b
     readN <- 9.3
-    # New = backgroundRate found by taking the median of 20 processed images of a general sky
-    # taken on Oct 18, 2017, Completely New moon
+    
+    # New = 20 processed images taken on Oct 18, 2017, Completely New moon
     # Full = 11 processed images, taken on Oct 5, 2017
     # Half2.0 = 19 processed images, taken on Feb 3, 2017 (1 day before First Quarter, 43%)
     backgroundRate <- switch(moon,"New" = 0.1096789,"Half" = 1.948203,"Full" = 6.01724)
-    C <- 10
     
     # dark rate was calculated from the median of 1200 sec dark / 1200
     darkRate <- 0.003444444*gain
     
-    # guesstimating for this value
-    star_counts <- 10^(C-mag/2.5) + expTime + backgroundRate*expTime/gain
-    star_counts <- star_counts*gain
+    # To recalibrate, switch the following numbers for the given filter
+    # These numbers are the rate
+    super_mag <- switch(filter,"g" = 13.5362, "r" = 0, "i" = 0, "Y" = 0, "z" = 0) # we only have data for g filter
+    super_counts <- switch(filter,"g" = 900.983, "r" = 0, "i" = 0, "Y" = 0, "z" = 0)
+    
+    wavelength <- switch(filter,"g" = 4770, "r" = 6231, "i" = 7625, "Y" = 0, "z" = 9134)
+    extCo <- 0.14
+    
     if (!signal){
+      star_counts <- (10^((mag - super_mag + extCo*airmass)/(-2.5)))*super_counts
       
       signal <- star_counts*expTime
       denom <- (star_counts + npix*a_b*(backgroundRate + darkRate))*expTime
@@ -169,9 +174,25 @@ server <- function(input, output) {
       remove(denom)
       
     } else if (!mag){
-      backgroundRate <- 1036.333*gain/expTime
-      mag <- 2.5*log(expTime) - 2.5*log(star_counts - backgroundRate)
+      # backgroundRate <- 1036.333*gain/expTime
+      # mag <- 2.5*log(expTime) - 2.5*log(star_counts - backgroundRate)
+      
+      a <- npix*a_b*(backgroundRate - darkRate)
+      b <- npix*a_b*(readN^2)
+      
+      A <- expTime^2
+      B <- -(signal^2)*expTime
+      C <- -(signal^2)*(a*expTime + b)
+      
+      star_counts <- B + sqrt(B^2 - 4*A*C)
+      star_counts <- star_counts/(2*A)
+      
+      mag <- super_mag - 2.5*log10(star_counts/super_counts) - extCo*airmass
+      
+      remove(a,b,A,B,C)
+      
     } else if (!expTime){
+      star_counts <- (10^((mag - super_mag + extCo*airmass)/(-2.5)))*super_counts
       
       A <- (star_counts^2) / signal^2
       B <- star_counts + npix*a_b*(backgroundRate + darkRate)
@@ -181,10 +202,16 @@ server <- function(input, output) {
       expTime <- expTime/(2*A)
       remove(A,B,C)
     } 
+    
+    # star_counts <- (10^((mag - super_mag + extCo*airmass)/(-2.5)))*super_counts*expTime
+    # fwhm <- 2.355*sd
+    # peak <- star_counts/(1.13*(fwhm^2))
+    peak <- 1
+    
     output$signal_noiseOUT <- renderText(signal)
     output$magnitudeOUT <- renderText(mag)
     output$exp_timeOUT <- renderText(expTime)
-    output$peak <- renderText(1)
+    output$peak <- renderText(peak)
   })
   observe({
     if (input$close > 0)

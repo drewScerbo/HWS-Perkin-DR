@@ -1,6 +1,8 @@
 library(shiny, data.table)
 
-
+gains <- list()
+gains[["Perkin/17in"]] <- 0.37
+# gains[[<new telescope>]] <- <new gain> # new telescopes can be entered like this
 
 ui <- fluidPage(
   h1("Perkin Observatory Exposure Time Calculator"),
@@ -63,7 +65,7 @@ ui <- fluidPage(
                selectInput(
                  inputId = "tele_inst",
                  "Telescope/Instrument:",
-                 c("Perkin/17in"),
+                 names(gains),
                  width = "200px"
                )
              ),
@@ -140,20 +142,20 @@ server <- function(input, output) {
     moon <- input$moon_phase
     airmass <- input$airmass
     
-    gain <- 0.37
+    gain <- gains[[tele]]
     npix <- pi*100
     # p_b <- pi*(30^2 - 20^2)
     p_b <- 3352 * 2532 # we used the whole image as the background rate
     a_b <- 1 + npix/p_b
     readN <- 9.3
     
+    # dark rate was calculated from the median of 1200 sec dark / 1200
+    darkRate <- 0.003444444*gain
+    
     # New = 20 processed images taken on Oct 18, 2017, Completely New moon
     # Full = 11 processed images, taken on Oct 5, 2017
     # Half2.0 = 19 processed images, taken on Feb 3, 2017 (1 day before First Quarter, 43%)
     backgroundRate <- switch(moon,"New" = 0.1096789,"Half" = 1.948203,"Full" = 6.01724)
-    
-    # dark rate was calculated from the median of 1200 sec dark / 1200
-    darkRate <- 0.003444444*gain
     
     # To recalibrate, switch the following numbers for the given filter
     # These numbers are the rate
@@ -161,9 +163,10 @@ server <- function(input, output) {
     super_counts <- switch(filter,"g" = 900.983, "r" = 0, "i" = 0, "Y" = 0, "z" = 0)
     
     wavelength <- switch(filter,"g" = 4770, "r" = 6231, "i" = 7625, "Y" = 0, "z" = 9134)
-    extCo <- 0.14
+    extCo <- 0.08
+    # need to factor in airmass
     
-    if (!signal){
+    if (is.na(signal) || !signal){
       star_counts <- (10^((mag - super_mag + extCo*airmass)/(-2.5)))*super_counts
       
       signal <- star_counts*expTime
@@ -172,8 +175,8 @@ server <- function(input, output) {
       
       signal <- signal/denom
       remove(denom)
-      
-    } else if (!mag){
+
+    } else if (is.na(mag) || !mag){
       # backgroundRate <- 1036.333*gain/expTime
       # mag <- 2.5*log(expTime) - 2.5*log(star_counts - backgroundRate)
       
@@ -191,7 +194,7 @@ server <- function(input, output) {
       
       remove(a,b,A,B,C)
       
-    } else if (!expTime){
+    } else if (is.na(expTime) || !expTime){
       star_counts <- (10^((mag - super_mag + extCo*airmass)/(-2.5)))*super_counts
       
       A <- (star_counts^2) / signal^2
@@ -203,10 +206,10 @@ server <- function(input, output) {
       remove(A,B,C)
     } 
     
-    # star_counts <- (10^((mag - super_mag + extCo*airmass)/(-2.5)))*super_counts*expTime
-    # fwhm <- 2.355*sd
-    # peak <- star_counts/(1.13*(fwhm^2))
-    peak <- 1
+    star_counts <- (10^((mag - super_mag + extCo*airmass)/(-2.5)))*super_counts*expTime
+    fwhm <- 10 # this is a guess
+    peak <- star_counts/(1.13*(fwhm^2))
+    # peak <- 1
     
     output$signal_noiseOUT <- renderText(signal)
     output$magnitudeOUT <- renderText(mag)

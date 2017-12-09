@@ -120,14 +120,6 @@ ui <- fluidPage(
       column(2, verbatimTextOutput("exp_timeOUT", TRUE)),
       column(2, verbatimTextOutput("peak", TRUE))
     )
-  ),
-  tags$button(
-    id = 'close',
-    type = "button",
-    class = "btn action-button",
-    onclick = "setTimeout(function(){window.close();},500);",
-    # close the browser
-    "Stop App"
   )
 )
 
@@ -160,11 +152,11 @@ server <- function(input, output) {
     # To recalibrate, switch the following numbers for the given filter
     # These numbers are the rate
     super_mag <- switch(filter,"g" = 13.5362, "r" = 0, "i" = 0, "Y" = 0, "z" = 0) # we only have data for g filter
-    super_counts <- switch(filter,"g" = 900.983, "r" = 0, "i" = 0, "Y" = 0, "z" = 0)
+    f <- function(x) {return(-1.82464*x + 2.81613)}
+    f <- function(x) {return(1)}
+    super_counts <- switch(filter,"g" = 900.983, "r" = 0, "i" = 0, "Y" = 0, "z" = 0)*f(airmass)
     
-    wavelength <- switch(filter,"g" = 4770, "r" = 6231, "i" = 7625, "Y" = 0, "z" = 9134)
     extCo <- 0.08
-    # need to factor in airmass
     
     if (is.na(signal) || !signal){
       star_counts <- (10^((mag - super_mag + extCo*airmass)/(-2.5)))*super_counts
@@ -207,7 +199,7 @@ server <- function(input, output) {
     } 
     
     star_counts <- (10^((mag - super_mag + extCo*airmass)/(-2.5)))*super_counts*expTime
-    fwhm <- 10 # this is a guess
+    fwhm <- 10 
     peak <- star_counts/(1.13*(fwhm^2))
     # peak <- 1
     
@@ -215,10 +207,6 @@ server <- function(input, output) {
     output$magnitudeOUT <- renderText(mag)
     output$exp_timeOUT <- renderText(expTime)
     output$peak <- renderText(peak)
-  })
-  observe({
-    if (input$close > 0)
-      stopApp()
   })
 }
 

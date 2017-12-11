@@ -154,12 +154,14 @@ server <- function(input, output) {
     super_mag <- switch(filter,"g" = 13.5362, "r" = 0, "i" = 0, "Y" = 0, "z" = 0) # we only have data for g filter
     f <- function(x) {return(-1.82464*x + 2.81613)}
     f <- function(x) {return(1)}
-    super_counts <- switch(filter,"g" = 900.983, "r" = 0, "i" = 0, "Y" = 0, "z" = 0)*f(airmass)
+    super_counts <- switch(filter,"g" = 900.983, "r" = 0, "i" = 0, "Y" = 0, "z" = 0)
     
-    extCo <- 0.08
+    m <- 5.327788
+    b <- -4.813512
+    y <- m*airmass + b
     
     if (is.na(signal) || !signal){
-      star_counts <- (10^((mag - super_mag + extCo*airmass)/(-2.5)))*super_counts
+      star_counts <- (10^((mag - super_mag)/(-2.5)))*super_counts * 10^(y/-2.5)
       
       signal <- star_counts*expTime
       denom <- (star_counts + npix*a_b*(backgroundRate + darkRate))*expTime
@@ -180,14 +182,14 @@ server <- function(input, output) {
       C <- -(signal^2)*(a*expTime + b)
       
       star_counts <- B + sqrt(B^2 - 4*A*C)
-      star_counts <- star_counts/(2*A)
+      star_counts <- star_counts/(2*A) * 10^(y/-2.5)
       
-      mag <- super_mag - 2.5*log10(star_counts/super_counts) - extCo*airmass
+      mag <- super_mag - 2.5*log10(star_counts/super_counts)
       
       remove(a,b,A,B,C)
       
     } else if (is.na(expTime) || !expTime){
-      star_counts <- (10^((mag - super_mag + extCo*airmass)/(-2.5)))*super_counts
+      star_counts <- (10^((mag - super_mag)/(-2.5)))*super_counts * 10^(y/-2.5)
       
       A <- (star_counts^2) / signal^2
       B <- star_counts + npix*a_b*(backgroundRate + darkRate)
@@ -198,7 +200,7 @@ server <- function(input, output) {
       remove(A,B,C)
     } 
     
-    star_counts <- (10^((mag - super_mag + extCo*airmass)/(-2.5)))*super_counts*expTime
+    star_counts <- (10^((mag - super_mag)/(-2.5)))*super_counts*expTime * 10^(y/-2.5)
     fwhm <- 10 
     peak <- star_counts/(1.13*(fwhm^2))
     # peak <- 1

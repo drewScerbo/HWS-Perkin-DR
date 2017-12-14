@@ -125,6 +125,67 @@ hist(arr2,breaks = 200,
 lines(c(med,med),c(0,210000),col=134)
 ```
 
+## Extinction Coefficient
+
+The extinction coefficient of an observatory describes how much light reaches the telescope from different airmasses. Airmass is the amount of air that light has to go through to reach the telescope. As the Earth spins, light from stars will be seen at different zenith angles. As the zenith angle increases, the airmass increases because light has to travel through more and more air to reach the same point on Earth.
+
+The extinction coefficient of an observatory can be calculated by analyzing the magnitudes of stars compared with airmass. The star counts of five stars at different airmasses was measured. Those star counts were converted to rates and then magnitudes.
+
+```{r,eval=FALSE}
+df <- read.csv(file.path(directory,'/hd219134_08082017_measurements2.csv'))
+
+names <- c('Source.Sky_C2','Source.Sky_C3','Source.Sky_C4',
+           'Source.Sky_C5','Source.Sky_C6')
+fitsCoeffs <- list()
+for (n in names){
+  count_rate <- df[n]
+  
+  count_rate <- log(df[n]/max(df[n]))*-2.5
+  
+  df2 <- data.frame(df['AIRMASS'],count_rate)
+  
+  y <- .2
+  
+  i <- which(df2[n] >= y)
+  
+  ...
+```
+
+The extinction coefficients for the 5 different stars were found and then averaged. A new dataframe was made to seperate the data. Looking at the plot below, there is some overlap in airmass and count rate below a count rate of 0.2. This overlap was probably due to the star reaching and passing the peak zenith angle and therefore was excluded from the fitting. The horizontal black line shows the cutoff point where all data below the line was excluded. 
+
+![](CountRatePerAirmass.png)
+
+The above plot and fitting is from the last star measured; C6. Once the data is ready to be fitted, it is fitted to a linear model. The magnitude of the stars are linearly proportional while the star counts are exponentially proportional, which follows our predictions. The linear fit line is shown in red on the plot above.
+
+```{r,eval=FALSE}
+  ...
+
+  count_rate <- df2[n][[1]][i]
+  airmass <- df2["AIRMASS"][[1]][i]
+  df3 <- data.frame("AIRMASS" = airmass,"COUNT_RATE" = count_rate)
+  fit <- lm(COUNT_RATE ~ AIRMASS,data = df3)
+  predicted <- 10^(predict(fit)/(-2.5))
+  fitsCoeffs <- append(fitsCoeffs,c(coefficients(fit)[2],coefficients(fit)[1]))
+  
+  plot(df2,ylab = paste(names(df2)[[2]],"Count Rate"),xlab = "Airmass",main = "Count Rate per Airmass")
+  lines(airmass,predict(fit),col='red')
+  lines(c(1,1.10),c(y,y))
+}
+```
+
+Once all five stars have their corresponding coefficients, they are averaged to find general coefficients. The plot below shows the expected, predicted extinction coefficients for the whole range of possible airmasses. It is clear that as the airmass increases, meaning the star is moving away from zenith, the coefficient decreases. This makes sense because as stars drop towards the horizon their brightness dims.
+
+```{r,eval=FALSE}
+m <- mean(as.numeric(fitsCoeffs[seq(1,9,2)]))
+b <- mean(as.numeric(fitsCoeffs[seq(2,10,2)]))
+f <- function(x) {return(m*x + b)}
+predicted <- 10^(f(seq(1,3,.01))/(-2.5))
+plot(seq(1,3,.01),predicted,main = "Averaged Extinction Coefficients",xlab = "Airmass",ylab = "Predicted Coefficient", type = 'l')
+
+```
+
+![](AvgExtCoef.png)
+
 ## Exposure Time Calculator
 
 The 'Shiny' package in R runs very similarly to any html document. The UI actually follows many html structures. This structure is made up of two sections; a header, with a brief description of the app, and a panel that holds all of the inputs and outputs. 
